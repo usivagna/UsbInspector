@@ -1,0 +1,22 @@
+## .NET build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+ARM64/
+
+## Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+## Generated / publish
+publish/
+*.binlog
+
+## OS
+Thumbs.db
+.DS_Store

@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "UsbInspector.App (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "UsbInspector.App (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
