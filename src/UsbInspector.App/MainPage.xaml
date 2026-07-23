@@ -129,6 +129,11 @@
                             <ItemsControl ItemsSource="{x:Bind ViewModel.RelatedRows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
                         </ScrollViewer>
                     </PivotItem>
+                    <PivotItem Header="Port">
+                        <ScrollViewer>
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.PortRows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
+                        </ScrollViewer>
+                    </PivotItem>
                     <PivotItem Header="Raw">
                         <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto">
                             <TextBlock Text="{x:Bind ViewModel.RawText, Mode=OneWay}"

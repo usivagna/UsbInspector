@@ -33,11 +33,81 @@ public sealed class Usb4Info
     /// <summary>Notes about USB4 data that Windows does not expose to user mode.</summary>
     public List<string> Limitations { get; } = new();
 
+    // ---- USB4 fabric detail (populated from the USB4 connection-manager ETW rundown; admin only) ----
+
+    /// <summary>USB4 domain ID (e.g. 0x202), from the connection-manager rundown.</summary>
+    public uint? DomainId { get; set; }
+
+    /// <summary>7-byte USB4 topology ID formatted as "a:b:c:d:e:f:g".</summary>
+    public string? TopologyId { get; set; }
+
+    /// <summary>Silicon vendor ID (router VendorId).</summary>
+    public ushort? SiliconVendorId { get; set; }
+
+    /// <summary>Silicon product ID (router ProductId).</summary>
+    public ushort? SiliconProductId { get; set; }
+
+    /// <summary>Silicon revision, where the rundown reports it.</summary>
+    public uint? SiliconRevision { get; set; }
+
+    /// <summary>USB4 specification version (e.g. "1.0").</summary>
+    public string? Usb4Version { get; set; }
+
+    /// <summary>Router UUID (ROUTER_CS_7/8), where reported.</summary>
+    public string? Uuid { get; set; }
+
+    /// <summary>ASCII vendor name from the USB4 DROM.</summary>
+    public string? AsciiVendorName { get; set; }
+
+    /// <summary>ASCII model name from the USB4 DROM.</summary>
+    public string? AsciiModelName { get; set; }
+
+    /// <summary>Unit (product) vendor ID (DeviceID / idVendor of the product descriptor).</summary>
+    public ushort? UnitVendorId { get; set; }
+
+    /// <summary>Unit (product) product ID (ModelID / idProduct of the product descriptor).</summary>
+    public ushort? UnitProductId { get; set; }
+
+    /// <summary>Device firmware version, where reported.</summary>
+    public string? FirmwareVersion { get; set; }
+
+    /// <summary>Computed downstream bandwidth in Gbps (from the upstream port link speed/width).</summary>
+    public double? CurrentBandwidthDownGbps { get; set; }
+
+    /// <summary>Computed upstream bandwidth in Gbps.</summary>
+    public double? CurrentBandwidthUpGbps { get; set; }
+
+    /// <summary>USB4 link generation (2 or 3), where computable.</summary>
+    public int? LinkGeneration { get; set; }
+
+    /// <summary>True when the port lanes are bonded (dual-lane).</summary>
+    public bool? LanesBonded { get; set; }
+
+    /// <summary>Total DP-IN adapters on this router, where reported.</summary>
+    public int? DpInAdaptersTotal { get; set; }
+
+    /// <summary>Tunnelled DP-IN adapters on this router.</summary>
+    public int? DpInAdaptersTunneled { get; set; }
+
+    /// <summary>Unavailable DP-IN adapters on this router.</summary>
+    public int? DpInAdaptersUnavailable { get; set; }
+
+    /// <summary>True when full fabric detail was unavailable because the process was not elevated.</summary>
+    public bool FabricDetailRequiresElevation { get; set; }
+
+    public bool HasFabricData =>
+        DomainId is not null
+        || TopologyId is not null
+        || SiliconVendorId is not null
+        || AsciiModelName is not null
+        || CurrentBandwidthDownGbps is not null;
+
     public bool HasAnyData =>
         IsUsb4Capable
         || IsHostRouter
         || RouterName is not null
         || LinkSpeedLabel is not null
         || SupportsTunnelledUsb
-        || Capabilities.Count > 0;
+        || Capabilities.Count > 0
+        || HasFabricData;
 }

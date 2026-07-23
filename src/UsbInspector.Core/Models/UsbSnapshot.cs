@@ -50,6 +50,17 @@ public sealed class UsbSnapshot
     /// </summary>
     public IReadOnlyList<PhysicalDeviceGroup> PhysicalDevices => BuildPhysicalGroups();
 
+    /// <summary>
+    /// Groups devnodes by the physical host port / connector they share (e.g. the USB 3.x and USB4
+    /// functions on one USB-C receptacle), using the best available Windows signal. Firmware-dependent
+    /// and labelled with its confidence source. Serialized with the snapshot for JSON export.
+    /// </summary>
+    public IReadOnlyList<PhysicalPortGroup> PhysicalPorts => BuildPhysicalPortGroups();
+
+    /// <summary>Clusters all nodes sharing a physical port/connector into groups.</summary>
+    public IReadOnlyList<PhysicalPortGroup> BuildPhysicalPortGroups() =>
+        new Services.PhysicalPortGrouper().Group(this);
+
     /// <summary>The all-zero GUID Windows assigns to devnodes that have no real container.</summary>
     public static bool IsRealContainerId(string? containerId)
     {

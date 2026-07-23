@@ -43,7 +43,32 @@ public sealed class Usb4Enumerator
             warnings.Add($"USB4 host router scan failed: {ex.Message}");
         }
 
+        EnrichWithFabricRundown(routers, warnings);
+
         return routers;
+    }
+
+    /// <summary>
+    /// Enriches the enumerated host routers with USB4 fabric detail from the connection-manager ETW
+    /// rundown (the same source the Windows Settings "USB4 hubs and devices" page uses). Best-effort:
+    /// requires elevation, and when unavailable the PnP subtree remains as the fallback view.
+    /// </summary>
+    private static void EnrichWithFabricRundown(List<UsbNode> routers, List<string> warnings)
+    {
+        if (routers.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            Usb4RundownData data = new Usb4RundownReader().Read(warnings);
+            new Usb4FabricEnricher().Enrich(routers, data, warnings);
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"USB4 fabric enrichment failed: {ex.Message}");
+        }
     }
 
     private static bool LooksLikeUsb4HostRouter(uint devInst)

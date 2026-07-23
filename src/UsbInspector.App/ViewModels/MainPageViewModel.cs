@@ -35,6 +35,7 @@ public sealed partial class MainPageViewModel : ObservableObject
     public ObservableCollection<DetailRow> UsbCRows { get; } = new();
     public ObservableCollection<DetailRow> Usb4Rows { get; } = new();
     public ObservableCollection<DetailRow> RelatedRows { get; } = new();
+    public ObservableCollection<DetailRow> PortRows { get; } = new();
     public ObservableCollection<string> EventLog { get; } = new();
 
     [ObservableProperty] private UsbTreeItem? _selectedItem;
@@ -76,12 +77,15 @@ public sealed partial class MainPageViewModel : ObservableObject
         IReadOnlyList<PhysicalDeviceGroup> groups = snapshot.BuildPhysicalGroups();
         AddPhysicalDevicesView(snapshot, groups);
 
+        IReadOnlyList<PhysicalPortGroup> portGroups = snapshot.BuildPhysicalPortGroups();
+        AddPhysicalPortsView(snapshot, portGroups);
+
         HasDevices = RootItems.Count > 0;
 
         IsNotElevated = !snapshot.IsElevated;
         StatusSummary = $"{snapshot.HostControllers.Count} controller(s), {snapshot.HubCount} hub(s), " +
                         $"{snapshot.DeviceCount} device(s), {snapshot.Usb4RouterCount} USB4 router(s), " +
-                        $"{groups.Count} physical group(s).  " +
+                        $"{groups.Count} physical group(s), {portGroups.Count} physical port(s).  " +
                         $"Captured {snapshot.CapturedAtUtc.ToLocalTime():HH:mm:ss}";
         PowerDeliverySummary = BuildPowerDeliverySummary(snapshot.PowerDelivery);
 
@@ -191,6 +195,48 @@ public sealed partial class MainPageViewModel : ObservableObject
         RootItems.Add(new UsbTreeItem(root, groupItems));
     }
 
+    private void AddPhysicalPortsView(UsbSnapshot snapshot, IReadOnlyList<PhysicalPortGroup> portGroups)
+    {
+        if (portGroups.Count == 0)
+        {
+            return;
+        }
+
+        Dictionary<string, UsbNode> byInstance = snapshot.EnumerateAll()
+            .Where(n => n.InstanceId is not null)
+            .GroupBy(n => n.InstanceId!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        var portItems = new List<UsbTreeItem>();
+        foreach (PhysicalPortGroup group in portGroups)
+        {
+            var portNode = new UsbNode
+            {
+                Kind = UsbNodeKind.PhysicalPort,
+                Name = $"{group.Name} — {group.Members.Count} functions ({group.SourceLabel})",
+                InstanceId = group.PortKey,
+            };
+
+            var memberItems = new List<UsbTreeItem>();
+            foreach (PhysicalDeviceMember member in group.Members)
+            {
+                UsbNode real = member.InstanceId is not null && byInstance.TryGetValue(member.InstanceId, out UsbNode? found)
+                    ? found
+                    : new UsbNode { Kind = member.Kind, Name = member.Name, InstanceId = member.InstanceId };
+                memberItems.Add(new UsbTreeItem(real, Array.Empty<UsbTreeItem>()));
+            }
+
+            portItems.Add(new UsbTreeItem(portNode, memberItems));
+        }
+
+        var root = new UsbNode
+        {
+            Kind = UsbNodeKind.PhysicalPortRoot,
+            Name = $"By Physical Port (grouped by connector) — {portGroups.Count}",
+        };
+        RootItems.Add(new UsbTreeItem(root, portItems));
+    }
+
     partial void OnSelectedItemChanged(UsbTreeItem? value)
     {
         OverviewRows.Clear();
@@ -199,6 +245,7 @@ public sealed partial class MainPageViewModel : ObservableObject
         UsbCRows.Clear();
         Usb4Rows.Clear();
         RelatedRows.Clear();
+        PortRows.Clear();
 
         if (value is null)
         {
@@ -219,6 +266,7 @@ public sealed partial class MainPageViewModel : ObservableObject
         foreach (DetailRow row in DetailsBuilder.UsbC(node)) UsbCRows.Add(row);
         foreach (DetailRow row in DetailsBuilder.Usb4(node)) Usb4Rows.Add(row);
         foreach (DetailRow row in DetailsBuilder.Related(node, _snapshot)) RelatedRows.Add(row);
+        foreach (DetailRow row in DetailsBuilder.SamePhysicalPort(node, _snapshot)) PortRows.Add(row);
 
         DescriptorsText = DetailsBuilder.Descriptors(node);
         RawText = DetailsBuilder.Raw(node);

@@ -1,5 +1,6 @@
 using System.Text;
 using UsbInspector.Core.Models;
+using UsbInspector.Core.Services;
 
 namespace UsbInspector_App.ViewModels;
 
@@ -159,6 +160,98 @@ public static class DetailsBuilder
 
         yield return new DetailRow("Tunnelled USB", u.SupportsTunnelledUsb.ToString());
 
+        if (u.HasFabricData)
+        {
+            if (u.DomainId is uint dom)
+            {
+                yield return new DetailRow("Domain ID", $"0x{dom:X}");
+            }
+
+            if (u.TopologyId is not null)
+            {
+                yield return new DetailRow("Topology ID", u.TopologyId);
+            }
+
+            if (u.SiliconVendorId is ushort sv)
+            {
+                yield return new DetailRow("Silicon vendor ID", $"0x{sv:X4}");
+            }
+
+            if (u.SiliconProductId is ushort sp)
+            {
+                yield return new DetailRow("Silicon product ID", $"0x{sp:X4}");
+            }
+
+            if (u.SiliconRevision is uint sr)
+            {
+                yield return new DetailRow("Silicon revision", sr.ToString());
+            }
+
+            if (u.Usb4Version is not null)
+            {
+                yield return new DetailRow("USB4 version", u.Usb4Version);
+            }
+
+            if (u.Uuid is not null)
+            {
+                yield return new DetailRow("UUID", u.Uuid);
+            }
+
+            if (u.AsciiVendorName is not null)
+            {
+                yield return new DetailRow("Vendor name", u.AsciiVendorName);
+            }
+
+            if (u.AsciiModelName is not null)
+            {
+                yield return new DetailRow("Model name", u.AsciiModelName);
+            }
+
+            if (u.UnitVendorId is ushort uv)
+            {
+                yield return new DetailRow("Unit vendor ID", $"0x{uv:X4}");
+            }
+
+            if (u.UnitProductId is ushort up)
+            {
+                yield return new DetailRow("Unit product ID", $"0x{up:X4}");
+            }
+
+            if (u.FirmwareVersion is not null)
+            {
+                yield return new DetailRow("Firmware version", u.FirmwareVersion);
+            }
+
+            if (u.CurrentBandwidthDownGbps is double down && u.CurrentBandwidthUpGbps is double up2)
+            {
+                string gen = u.LinkGeneration is int g ? $" (Gen {g}, {(u.LanesBonded == true ? "dual" : "single")} lane)" : string.Empty;
+                yield return new DetailRow("Current bandwidth (down/up)", $"{down:0}Gbps/{up2:0}Gbps{gen}");
+            }
+
+            if (u.DpInAdaptersTotal is int dpt)
+            {
+                yield return new DetailRow("Total DP IN adapters", dpt.ToString());
+            }
+
+            if (u.DpInAdaptersTunneled is int dptun)
+            {
+                yield return new DetailRow("Tunneled DP IN adapters", dptun.ToString());
+            }
+
+            if (u.DpInAdaptersUnavailable is int dpun)
+            {
+                yield return new DetailRow("Unavailable DP IN adapters", dpun.ToString());
+            }
+        }
+        else if (u.FabricDetailRequiresElevation)
+        {
+            yield return new DetailRow(
+                "Fabric detail",
+                "Full USB4 fabric information (Domain/Topology IDs, silicon IDs, model/firmware, bandwidth) "
+                + "requires administrator rights. Use 'Restart as Admin' to match the Windows Settings "
+                + "'USB4 hubs and devices' page.");
+        }
+
         foreach (string cap in u.Capabilities)
         {
             yield return new DetailRow("Capability", cap);
@@ -203,6 +296,54 @@ public static class DetailsBuilder
             "Note",
             "Grouped by Windows ContainerId — the logically-separate USB3/USB4 functions of one "
             + "physical device/enclosure. True same-connector identity (ACPI _PLD/_UPC) is not exposed to user mode.");
+    }
+
+    public static IEnumerable<DetailRow> SamePhysicalPort(UsbNode node, UsbSnapshot? snapshot)
+    {
+        if (snapshot is null)
+        {
+            yield return new DetailRow("Same physical port", "No snapshot available.");
+            yield break;
+        }
+
+        (string Key, PortGroupSource Source)? computed = PhysicalPortGrouper.ComputePortKey(node);
+        if (computed is null)
+        {
+            yield return new DetailRow("Same physical port", "No physical-port location signal reported for this node.");
+            yield break;
+        }
+
+        (string key, PortGroupSource source) = computed.Value;
+
+        List<UsbNode> sharing = snapshot.EnumerateAll()
+            .Where(n => !ReferenceEquals(n, node))
+            .Where(n =>
+            {
+                var c = PhysicalPortGrouper.ComputePortKey(n);
+                return c is not null && string.Equals(c.Value.Key, key, StringComparison.OrdinalIgnoreCase);
+            })
+            .ToList();
+
+        yield return new DetailRow("Port key", key);
+
+        if (sharing.Count == 0)
+        {
+            yield return new DetailRow("Same physical port", "This is the only function reported on its physical port.");
+        }
+        else
+        {
+            foreach (UsbNode r in sharing)
+            {
+                string detail = r.Name + (r.InstanceId is not null ? $"  [{r.InstanceId}]" : string.Empty);
+                yield return new DetailRow(r.Kind.ToString(), detail);
+            }
+        }
+
+        var portGroup = new PhysicalPortGroup { Source = source };
+        yield return new DetailRow(
+            "Note",
+            $"Physical-port grouping is {portGroup.SourceLabel}. Fidelity is firmware-dependent "
+            + "(ACPI _PLD / location paths); the USB4 fabric port is the most authoritative signal.");
     }
 
     public static string Descriptors(UsbNode node)

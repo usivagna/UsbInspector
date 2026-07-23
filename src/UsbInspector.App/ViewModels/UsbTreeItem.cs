@@ -40,9 +40,12 @@ public sealed class UsbTreeItem
         UsbNodeKind.Device => "\uE88E",         // device
         UsbNodeKind.EmptyPort => "\uE7B3",      // empty slot
         UsbNodeKind.Usb4HostRouter => "\uE945", // lightning / high-speed link
+        UsbNodeKind.Usb4DeviceRouter => "\uE945",
         UsbNodeKind.PnpDevice => "\uE964",      // generic component
         UsbNodeKind.PhysicalGroupRoot => "\uE7F4", // collection
         UsbNodeKind.PhysicalGroup => "\uE977",  // package / enclosure
+        UsbNodeKind.PhysicalPortRoot => "\uE7F4",
+        UsbNodeKind.PhysicalPort => "\uE7F8",   // connector / port
         _ => "\uE7F4",
     };
 }

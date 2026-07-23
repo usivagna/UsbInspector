@@ -27,14 +27,28 @@ Built with **C# WinUI 3** on **.NET 9** (unpackaged desktop app).
 - **USB4** — discovers **USB4 Host Router** devnodes (shown as a top‑level section in the topology
   tree) and **enumerates each router's PnP/PCIe devnode subtree** (tunnelled xHCI host controllers,
   PCIe/DisplayPort tunnels and their descendants) via CfgMgr32, so a router is no longer a flat node.
-  Labels USB4‑class link speeds (20/40 Gbps) and tunnelled USB 3.2 links on devices. Full USB4 fabric
-  detail (router/adapter topology, PCIe/DisplayPort tunnelling, per‑lane negotiation) is not exposed
-  to user mode by public Windows APIs and is clearly labelled as such.
+  When run **as administrator**, it additionally consumes the **USB4 connection‑manager ETW
+  TraceLogging rundown** — the same data source as the Windows **Settings ▸ USB ▸ USB4 hubs and
+  devices** page — to surface full fabric detail: **Domain ID, 7‑byte Topology ID, silicon
+  vendor/product/revision, USB4 version, DP‑IN adapter counts, device vendor/model, unit
+  vendor/product, firmware version and computed link bandwidth** (e.g. "40Gbps/40Gbps, Gen 3, dual
+  lane"), and builds a clean **Host Router → Device Router** topology. Providers:
+  `Microsoft.Windows.USB.USB4.HostRouter` `{575BA31F‑2B45‑58C2‑64FD‑F5DC757B6137}` and
+  `Microsoft.Windows.USB.USB4.DeviceRouter` `{AE795D36‑2B11‑5EFB‑C7E0‑5D552BC55D6C}`. Real‑time ETW
+  requires elevation; **without admin rights the app falls back to the PnP devnode subtree** and shows
+  a clear note. Labels USB4‑class link speeds (20/40 Gbps) and tunnelled USB 3.2 links on devices.
 - **Physical grouping** — logically‑separate USB3/USB4 functions that share one physical
   device/enclosure are grouped by Windows **`ContainerId`**. The details pane has a **Related** tab
   listing the other functions of the selected node's physical device, and the topology tree gains a
-  synthetic **"Physical Devices"** section clustering every node by ContainerId. True same‑connector
-  identity (ACPI `_PLD/_UPC`) is not exposed to user mode.
+  synthetic **"Physical Devices"** section clustering every node by ContainerId.
+- **By Physical Port** — a second grouping clusters functions that share the same **physical host
+  port / connector** (e.g. the USB 3.x and USB4 functions on one USB‑C receptacle). A synthetic **"By
+  Physical Port"** tree section and a **Port** details tab list the co‑located functions. The port key
+  is derived from the best available signal, in priority order: **USB4 fabric port** (ETW domain +
+  topology) → **ACPI `_PLD` connector token** (from `DEVPKEY_Device_LocationPaths`) → **location‑path
+  prefix** → **`DEVPKEY_Device_LocationInfo`**. Fidelity is firmware‑dependent and each group is
+  **labelled with its source/confidence**. True same‑connector identity via ACPI `_PLD/_UPC` is only
+  partially exposed to user mode, so lower‑confidence groupings are marked "approximate".
 - **Live events** — real‑time USB arrival/removal log via `CM_Register_Notification`, with a
   debounced auto‑refresh.
 - **Export** — save the full snapshot to **JSON** for diagnostics/sharing.
@@ -49,7 +63,9 @@ Built with **C# WinUI 3** on **.NET 9** (unpackaged desktop app).
 | Supplementary data | **WMI** — `Win32_USBController`, `Win32_USBHub`, `Win32_PnPEntity` |
 | Live events | **CfgMgr32** — `CM_Register_Notification` |
 | USB4 host routers | **SetupAPI / CfgMgr32** — present‑devnode scan (`SetupDiEnumDeviceInfo`) matched by service/class/description, then subtree walk via `CM_Get_Child`/`CM_Get_Sibling`; DEVPKEY properties (Windows publishes no device‑interface GUID for USB4 host routers) |
+| USB4 fabric detail | **ETW TraceLogging rundown** (`Microsoft.Diagnostics.Tracing.TraceEvent`) — real‑time session on the USB4 HostRouter/DeviceRouter providers; same source as Settings "USB4 hubs and devices". **Requires administrator rights.** |
 | Physical grouping | **CfgMgr32** — `DEVPKEY_Device_ContainerId` groups the logically‑separate USB3/USB4 functions of one physical device/enclosure |
+| Physical‑port grouping | **CfgMgr32 / ETW** — `DEVPKEY_Device_LocationPaths` (ACPI `_PLD` connector token, location‑path prefix), `DEVPKEY_Device_LocationInfo`, and USB4 fabric port; firmware‑dependent, labelled by confidence |
 | Charging / USB‑PD | **WinRT** — `Windows.Devices.Power.Battery` |
 
 Native interop is generated with **CsWin32** (`Microsoft.Windows.CsWin32`) from the Win32
@@ -109,12 +125,18 @@ complete data, run as Administrator.
 - **USB4** host routers are located by scanning present devnodes (Windows publishes no
   device‑interface GUID for them); their children are the **PnP/PCIe devnode subtree** (a PnP view,
   not a USB hub/port tree). The tunnelled USB devices themselves also appear under the tunnelled
-  xHCI host controller in the host‑controller tree (related by ContainerId). Full USB4 fabric detail
-  — router/adapter topology, PCIe and DisplayPort tunnelling, and per‑lane link negotiation — is
-  **not** exposed to user mode and is labelled accordingly.
+  xHCI host controller in the host‑controller tree (related by ContainerId). **Full USB4 fabric
+  detail** (Domain/Topology IDs, silicon IDs, model/firmware, DP‑IN adapters, computed bandwidth, and
+  the Host Router → Device Router topology) is read from the **USB4 connection‑manager ETW rundown**,
+  which **requires administrator rights**. When not elevated, the app shows a note and keeps the PnP
+  devnode subtree as a fallback. The documented rundown event list is non‑exhaustive, so all payload
+  fields are captured and mapped defensively.
 - **Physical grouping** relies on Windows **`ContainerId`**, which relates the separate devnodes of
-  one physical device/enclosure. True per‑*connector* identity (ACPI `_PLD/_UPC`) is **not** cleanly
-  exposed to user mode, so grouping is at device/enclosure granularity.
+  one physical device/enclosure.
+- **By Physical Port** grouping approximates same‑*connector* identity using ACPI `_PLD` connector
+  tokens / location paths / location info and the USB4 fabric port. ACPI `_PLD/_UPC` is only partially
+  exposed to user mode and is firmware‑dependent, so groupings are **labelled with their confidence**
+  and degrade gracefully to location‑path/location‑info signals when a `_PLD` token is unavailable.
 - On systems with **no USB hardware** (e.g. some cloud VMs) the tree is empty and the status bar
   reports zero controllers — this is expected.
 
