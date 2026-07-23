@@ -33,6 +33,7 @@ public sealed partial class MainPageViewModel : ObservableObject
     public ObservableCollection<DetailRow> PnpRows { get; } = new();
     public ObservableCollection<DetailRow> PowerRows { get; } = new();
     public ObservableCollection<DetailRow> UsbCRows { get; } = new();
+    public ObservableCollection<DetailRow> Usb4Rows { get; } = new();
     public ObservableCollection<string> EventLog { get; } = new();
 
     [ObservableProperty] private UsbTreeItem? _selectedItem;
@@ -66,14 +67,20 @@ public sealed partial class MainPageViewModel : ObservableObject
             RootItems.Add(new UsbTreeItem(controller));
         }
 
+        foreach (UsbNode router in snapshot.Usb4HostRouters)
+        {
+            RootItems.Add(new UsbTreeItem(router));
+        }
+
         HasDevices = RootItems.Count > 0;
 
         IsNotElevated = !snapshot.IsElevated;
         StatusSummary = $"{snapshot.HostControllers.Count} controller(s), {snapshot.HubCount} hub(s), " +
-                        $"{snapshot.DeviceCount} device(s).  Captured {snapshot.CapturedAtUtc.ToLocalTime():HH:mm:ss}";
+                        $"{snapshot.DeviceCount} device(s), {snapshot.Usb4RouterCount} USB4 router(s).  " +
+                        $"Captured {snapshot.CapturedAtUtc.ToLocalTime():HH:mm:ss}";
         PowerDeliverySummary = BuildPowerDeliverySummary(snapshot.PowerDelivery);
 
-        if (snapshot.HostControllers.Count == 0)
+        if (RootItems.Count == 0)
         {
             SelectedTitle = "No USB devices found";
             HasSelection = false;
@@ -143,6 +150,7 @@ public sealed partial class MainPageViewModel : ObservableObject
         PnpRows.Clear();
         PowerRows.Clear();
         UsbCRows.Clear();
+        Usb4Rows.Clear();
 
         if (value is null)
         {
@@ -161,6 +169,7 @@ public sealed partial class MainPageViewModel : ObservableObject
         foreach (DetailRow row in DetailsBuilder.Pnp(node)) PnpRows.Add(row);
         foreach (DetailRow row in DetailsBuilder.Power(node)) PowerRows.Add(row);
         foreach (DetailRow row in DetailsBuilder.UsbC(node)) UsbCRows.Add(row);
+        foreach (DetailRow row in DetailsBuilder.Usb4(node)) Usb4Rows.Add(row);
 
         DescriptorsText = DetailsBuilder.Descriptors(node);
         RawText = DetailsBuilder.Raw(node);

@@ -28,6 +28,7 @@ public sealed class UsbTreeItem
         UsbNodeKind.ExternalHub => "\uE8CE",
         UsbNodeKind.Device => "\uE88E",         // device
         UsbNodeKind.EmptyPort => "\uE7B3",      // empty slot
+        UsbNodeKind.Usb4HostRouter => "\uE945", // lightning / high-speed link
         _ => "\uE7F4",
     };
 }

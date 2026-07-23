@@ -3,7 +3,7 @@
 A native Windows desktop application that discovers and displays **all obtainable USB
 information** on the system using **public Windows APIs**. It shows host controllers, the full
 hub/port topology tree, connected devices, complete USB descriptors, PnP/driver properties,
-power & speed data, **USB Type‑C** information, and **live hot‑plug events**.
+power & speed data, **USB Type‑C** information, **USB4** host routers, and **live hot‑plug events**.
 
 Built with **C# WinUI 3** on **.NET 9** (unpackaged desktop app).
 
@@ -24,6 +24,11 @@ Built with **C# WinUI 3** on **.NET 9** (unpackaged desktop app).
   `USB_NODE_CONNECTION_INFORMATION_EX_V2`), **Billboard** alternate modes (e.g. DisplayPort SVIDs),
   SuperSpeedPlus capability, and system charging state / negotiated charge rate (USB‑PD) via the
   WinRT battery aggregate. Fields Windows does not expose to user mode are clearly labelled.
+- **USB4** — discovers **USB4 Host Router** devnodes (shown as a top‑level section in the topology
+  tree) with their PnP/driver properties, labels USB4‑class link speeds (20/40 Gbps) and tunnelled
+  USB 3.2 links on devices. Full USB4 fabric detail (router/adapter topology, PCIe/DisplayPort
+  tunnelling, per‑lane negotiation) is not exposed to user mode by public Windows APIs and is
+  clearly labelled as such.
 - **Live events** — real‑time USB arrival/removal log via `CM_Register_Notification`, with a
   debounced auto‑refresh.
 - **Export** — save the full snapshot to **JSON** for diagnostics/sharing.
@@ -32,11 +37,12 @@ Built with **C# WinUI 3** on **.NET 9** (unpackaged desktop app).
 
 | Area | API |
 | --- | --- |
-| Device/interface enumeration | **SetupAPI** — `SetupDiGetClassDevs`, `SetupDiEnumDeviceInterfaces`, `SetupDiGetDeviceInterfaceDetail` |
+| Device/interface enumeration | **SetupAPI** — `SetupDiGetClassDevs`, `SetupDiEnumDeviceInterfaces`, `SetupDiEnumDeviceInfo`, `SetupDiGetDeviceInterfaceDetail` |
 | Device tree & properties | **CfgMgr32** — `CM_Get_Parent/Child/Sibling`, `CM_Get_Device_ID`, `CM_Get_DevNode_Property`, `CM_Get_DevNode_Status` |
 | Hub/port & descriptor queries | **usbioctl / DeviceIoControl** — `IOCTL_USB_GET_ROOT_HUB_NAME`, `..._GET_NODE_INFORMATION`, `..._GET_NODE_CONNECTION_INFORMATION_EX(_V2)`, `..._GET_DESCRIPTOR_FROM_NODE_CONNECTION`, `..._GET_NODE_CONNECTION_NAME`, `..._GET_HUB_INFORMATION_EX` |
 | Supplementary data | **WMI** — `Win32_USBController`, `Win32_USBHub`, `Win32_PnPEntity` |
 | Live events | **CfgMgr32** — `CM_Register_Notification` |
+| USB4 host routers | **SetupAPI / CfgMgr32** — present‑devnode scan (`SetupDiEnumDeviceInfo`) matched by service/class/description; DEVPKEY properties (Windows publishes no device‑interface GUID for USB4 host routers) |
 | Charging / USB‑PD | **WinRT** — `Windows.Devices.Power.Battery` |
 
 Native interop is generated with **CsWin32** (`Microsoft.Windows.CsWin32`) from the Win32
@@ -49,7 +55,7 @@ metadata; USB IOCTL control codes not present in the metadata are computed from 
 UsbInspector.sln
  ├─ src/UsbInspector.Core        Class library — all interop, services and models (no UI)
  │   ├─ Interop/                 CsWin32 config + native helpers (IOCTLs, device IO, DEVPKEYs, CfgMgr)
- │   ├─ Models/                  UsbNode, descriptors, PnP props, USB‑C, snapshot
+ │   ├─ Models/                  UsbNode, descriptors, PnP props, USB‑C, USB4, snapshot
  │   └─ Services/                Enumeration, topology walk, descriptor reading, WMI, watcher, export
  ├─ src/UsbInspector.App         WinUI 3 app (MVVM) — tree, tabbed details, event log, export
  └─ tests/UsbInspector.Core.Tests  xUnit interop / pipeline smoke tests
@@ -93,6 +99,10 @@ complete data, run as Administrator.
 - USB **Power Delivery** contract details (raw PDO voltage/current objects) and the physical
   connector type (Type‑C vs legacy) are **not** exposed to user mode by public Windows APIs; the
   app surfaces what is available (negotiated speed, alt modes, charge rate) and labels the rest.
+- **USB4** host routers are located by scanning present devnodes (Windows publishes no
+  device‑interface GUID for them). Full USB4 fabric detail — router/adapter topology, PCIe and
+  DisplayPort tunnelling, and per‑lane link negotiation — is **not** exposed to user mode and is
+  labelled accordingly.
 - On systems with **no USB hardware** (e.g. some cloud VMs) the tree is empty and the status bar
   reports zero controllers — this is expected.
 

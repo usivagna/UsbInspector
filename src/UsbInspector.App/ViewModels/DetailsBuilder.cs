@@ -122,6 +122,54 @@ public static class DetailsBuilder
         }
     }
 
+    public static IEnumerable<DetailRow> Usb4(UsbNode node)
+    {
+        Usb4Info? u = node.Usb4;
+        if (u is null || !u.HasAnyData)
+        {
+            yield return new DetailRow("USB4", "No USB4-specific data reported for this device.");
+            if (u is not null)
+            {
+                foreach (string note in u.Limitations)
+                {
+                    yield return new DetailRow("Note", note);
+                }
+            }
+
+            yield break;
+        }
+
+        yield return new DetailRow("USB4 host router", u.IsHostRouter.ToString());
+        yield return new DetailRow("USB4 capable", u.IsUsb4Capable.ToString());
+
+        if (u.RouterName is not null)
+        {
+            yield return new DetailRow("Router name", u.RouterName);
+        }
+
+        if (u.HostRouterInstanceId is not null)
+        {
+            yield return new DetailRow("Host router instance", u.HostRouterInstanceId);
+        }
+
+        if (u.LinkSpeedLabel is not null)
+        {
+            yield return new DetailRow("Link speed", u.LinkSpeedLabel);
+        }
+
+        yield return new DetailRow("Tunnelled USB", u.SupportsTunnelledUsb.ToString());
+
+        foreach (string cap in u.Capabilities)
+        {
+            yield return new DetailRow("Capability", cap);
+        }
+
+        foreach (string note in u.Limitations)
+        {
+            yield return new DetailRow("Note", note);
+        }
+    }
+
     public static string Descriptors(UsbNode node)
     {
         var sb = new StringBuilder();

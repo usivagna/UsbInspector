@@ -14,6 +14,9 @@ public sealed class UsbSnapshot
     /// <summary>Root of the topology: one node per USB host controller.</summary>
     public List<UsbNode> HostControllers { get; } = new();
 
+    /// <summary>USB4 host router devnodes discovered on the system (a separate top-level section).</summary>
+    public List<UsbNode> Usb4HostRouters { get; } = new();
+
     /// <summary>Global, non-fatal issues encountered during the scan.</summary>
     public List<string> Warnings { get; } = new();
 
@@ -32,9 +35,10 @@ public sealed class UsbSnapshot
             }
         }
 
-        return HostControllers.SelectMany(Walk);
+        return HostControllers.Concat(Usb4HostRouters).SelectMany(Walk);
     }
 
     public int DeviceCount => EnumerateAll().Count(n => n.Kind == UsbNodeKind.Device);
     public int HubCount => EnumerateAll().Count(n => n.Kind is UsbNodeKind.RootHub or UsbNodeKind.ExternalHub);
+    public int Usb4RouterCount => Usb4HostRouters.Count;
 }

@@ -8,6 +8,7 @@ public enum UsbNodeKind
     ExternalHub,
     Device,
     EmptyPort,
+    Usb4HostRouter,
     Unknown,
 }
 
@@ -20,7 +21,9 @@ public enum UsbSpeed
     High = 2,       // 480 Mbps
     Super = 3,      // 5 Gbps  (USB 3.0 / Gen1x1)
     SuperPlus = 4,  // 10 Gbps (USB 3.1 Gen2x1)
-    SuperPlus20 = 5 // 20 Gbps (USB 3.2 Gen2x2)
+    SuperPlus20 = 5, // 20 Gbps (USB 3.2 Gen2x2)
+    Usb4Gen2x2 = 6, // 20 Gbps (USB4)
+    Usb4Gen3x2 = 7  // 40 Gbps (USB4)
 }
 
 /// <summary>Connection status of a hub port (mirrors USB_CONNECTION_STATUS).</summary>

@@ -89,6 +89,7 @@ public sealed class HubTopologyWalker
         ReadDescriptors(node, reader, port);
         AttachPnpProperties(node, hub, port);
         node.UsbC = BuildUsbC(node, v2Flags, speed);
+        node.Usb4 = BuildUsb4(node, v2Flags, speed);
         node.Power = BuildPower(node, connection);
         node.Name = BuildDisplayName(node, port);
 
@@ -235,6 +236,45 @@ public sealed class HubTopologyWalker
         return usbc;
     }
 
+    private static Usb4Info? BuildUsb4(UsbNode node, USB_NODE_CONNECTION_INFORMATION_EX_V2_FLAGS? v2Flags, UsbSpeed speed)
+    {
+        var usb4 = new Usb4Info();
+
+        // Devices attached over a USB4 fabric tunnel USB 3.2 traffic; the tunnelled link presents
+        // as SuperSpeed/SuperSpeedPlus (10/20 Gbps) via the EX_V2 flags.
+        if (v2Flags is { } flags && flags.Anonymous.DeviceIsOperatingAtSuperSpeedPlusOrHigher)
+        {
+            usb4.SupportsTunnelledUsb = true;
+            usb4.Capabilities.Add("Operating at SuperSpeedPlus (10+ Gbps) — compatible with tunnelled USB over USB4.");
+        }
+
+        // A USB4-class negotiated speed (20/40 Gbps) is a strong USB4 signal where Windows reports it.
+        if (speed is UsbSpeed.Usb4Gen2x2 or UsbSpeed.Usb4Gen3x2)
+        {
+            usb4.IsUsb4Capable = true;
+            usb4.LinkSpeedLabel = DescribeSpeed(speed);
+        }
+
+        // Hardware/compatible IDs sometimes carry a USB4 marker for the peripheral.
+        if (node.Pnp is { } pnp
+            && (pnp.HardwareIds.Concat(pnp.CompatibleIds)
+                    .Any(id => id.Contains("USB4", StringComparison.OrdinalIgnoreCase))
+                || (pnp.BusReportedDeviceDesc?.Contains("USB4", StringComparison.OrdinalIgnoreCase) ?? false)))
+        {
+            usb4.IsUsb4Capable = true;
+        }
+
+        if (!usb4.HasAnyData)
+        {
+            return null;
+        }
+
+        usb4.Limitations.Add(
+            "USB4 fabric detail (routers/adapters, PCIe/DisplayPort tunnelling, per-lane negotiation) " +
+            "is not exposed per-device to user mode by public Windows APIs.");
+        return usb4;
+    }
+
     private static void ParseBillboardAltModes(byte[] raw, UsbCInfo usbc)
     {
         // USB Billboard Capability Descriptor: alt-mode array begins at offset 44,
@@ -331,6 +371,8 @@ public sealed class HubTopologyWalker
         UsbSpeed.Super => "SuperSpeed (5 Gbps)",
         UsbSpeed.SuperPlus => "SuperSpeed+ (10 Gbps)",
         UsbSpeed.SuperPlus20 => "SuperSpeed+ (20 Gbps)",
+        UsbSpeed.Usb4Gen2x2 => "USB4 (20 Gbps)",
+        UsbSpeed.Usb4Gen3x2 => "USB4 (40 Gbps)",
         _ => "Unknown",
     };
 

@@ -39,6 +39,7 @@ public sealed class UsbNode
     public PnpDeviceProperties? Pnp { get; set; }
     public PortPowerInfo? Power { get; set; }
     public UsbCInfo? UsbC { get; set; }
+    public Usb4Info? Usb4 { get; set; }
 
     /// <summary>Non-fatal issues encountered while inspecting this node (e.g. access denied).</summary>
     public List<string> Warnings { get; } = new();

@@ -19,11 +19,17 @@ public sealed class UsbInspectorService
             PnpDeviceIndex pnpIndex = PnpDeviceIndex.Build();
             var enumerator = new HostControllerEnumerator(pnpIndex);
             snapshot.HostControllers.AddRange(enumerator.Enumerate());
+            snapshot.Usb4HostRouters.AddRange(new Usb4Enumerator().Enumerate(snapshot.Warnings));
             snapshot.PowerDelivery = PowerDeliveryService.Read();
 
             if (snapshot.HostControllers.Count == 0)
             {
                 snapshot.Warnings.Add("No USB host controllers were found on this system.");
+            }
+
+            if (snapshot.Usb4HostRouters.Count == 0)
+            {
+                snapshot.Warnings.Add("No USB4 host routers were found (the system may not have USB4 hardware).");
             }
 
             if (!snapshot.IsElevated)

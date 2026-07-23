@@ -119,6 +119,11 @@
                             <ItemsControl ItemsSource="{x:Bind ViewModel.UsbCRows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
                         </ScrollViewer>
                     </PivotItem>
+                    <PivotItem Header="USB4">
+                        <ScrollViewer>
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.Usb4Rows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
+                        </ScrollViewer>
+                    </PivotItem>
                     <PivotItem Header="Raw">
                         <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto">
                             <TextBlock Text="{x:Bind ViewModel.RawText, Mode=OneWay}"
