@@ -12,6 +12,17 @@ public sealed class UsbTreeItem
         Children = new ObservableCollection<UsbTreeItem>(node.Children.Select(c => new UsbTreeItem(c)));
     }
 
+    /// <summary>
+    /// Wraps a node with an explicit set of child items. Used by the "Physical devices" grouped view
+    /// to reference real nodes as flat leaves (so selection shows full details) without expanding
+    /// their own topology subtree.
+    /// </summary>
+    public UsbTreeItem(UsbNode node, IEnumerable<UsbTreeItem> children)
+    {
+        Node = node;
+        Children = new ObservableCollection<UsbTreeItem>(children);
+    }
+
     public UsbNode Node { get; }
 
     public ObservableCollection<UsbTreeItem> Children { get; }
@@ -29,6 +40,9 @@ public sealed class UsbTreeItem
         UsbNodeKind.Device => "\uE88E",         // device
         UsbNodeKind.EmptyPort => "\uE7B3",      // empty slot
         UsbNodeKind.Usb4HostRouter => "\uE945", // lightning / high-speed link
+        UsbNodeKind.PnpDevice => "\uE964",      // generic component
+        UsbNodeKind.PhysicalGroupRoot => "\uE7F4", // collection
+        UsbNodeKind.PhysicalGroup => "\uE977",  // package / enclosure
         _ => "\uE7F4",
     };
 }

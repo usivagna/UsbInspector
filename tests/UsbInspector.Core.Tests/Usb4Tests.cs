@@ -77,5 +77,83 @@ public class Usb4Tests
         string json = SnapshotExporter.ToJson(snapshot);
         using var doc = System.Text.Json.JsonDocument.Parse(json);
         Assert.True(doc.RootElement.TryGetProperty("Usb4HostRouters", out _));
+        Assert.True(doc.RootElement.TryGetProperty("PhysicalDevices", out _));
+    }
+
+    [Fact]
+    public void Usb4HostRouterChildrenAreEnumeratedWhenPresent()
+    {
+        var warnings = new List<string>();
+        IReadOnlyList<UsbNode> routers = new Usb4Enumerator().Enumerate(warnings);
+
+        foreach (UsbNode router in routers)
+        {
+            _output.WriteLine($"{router.Name}: {router.Children.Count} child devnode(s)");
+            // Every enumerated child must be a PnP devnode carrying properties.
+            foreach (UsbNode child in router.Children)
+            {
+                Assert.Equal(UsbNodeKind.PnpDevice, child.Kind);
+                Assert.NotNull(child.Pnp);
+            }
+        }
+
+        Assert.NotNull(routers);
+    }
+
+    [Fact]
+    public void IsRealContainerIdRejectsEmptyAndZeroGuid()
+    {
+        Assert.False(UsbSnapshot.IsRealContainerId(null));
+        Assert.False(UsbSnapshot.IsRealContainerId(""));
+        Assert.False(UsbSnapshot.IsRealContainerId("   "));
+        Assert.False(UsbSnapshot.IsRealContainerId("{00000000-0000-0000-0000-000000000000}"));
+        Assert.True(UsbSnapshot.IsRealContainerId("{11111111-1111-1111-1111-111111111111}"));
+    }
+
+    [Fact]
+    public void BuildPhysicalGroupsClustersByContainerIdAndExcludesNoise()
+    {
+        const string shared = "{11111111-1111-1111-1111-111111111111}";
+        const string lone = "{22222222-2222-2222-2222-222222222222}";
+        const string zero = "{00000000-0000-0000-0000-000000000000}";
+
+        var snapshot = new UsbSnapshot();
+        var controller = new UsbNode
+        {
+            Kind = UsbNodeKind.HostController,
+            Name = "Controller",
+            InstanceId = "A",
+            Pnp = new PnpDeviceProperties { ContainerId = shared },
+        };
+        controller.Children.Add(new UsbNode
+        {
+            Kind = UsbNodeKind.Device,
+            Name = "Dock function",
+            InstanceId = "B",
+            Pnp = new PnpDeviceProperties { ContainerId = shared },
+        });
+        snapshot.HostControllers.Add(controller);
+        snapshot.HostControllers.Add(new UsbNode
+        {
+            Kind = UsbNodeKind.Device,
+            Name = "Lone device",
+            InstanceId = "C",
+            Pnp = new PnpDeviceProperties { ContainerId = lone },
+        });
+        snapshot.HostControllers.Add(new UsbNode
+        {
+            Kind = UsbNodeKind.Device,
+            Name = "No container",
+            InstanceId = "D",
+            Pnp = new PnpDeviceProperties { ContainerId = zero },
+        });
+
+        IReadOnlyList<PhysicalDeviceGroup> groups = snapshot.BuildPhysicalGroups();
+
+        // Only the shared container (2 members) is a meaningful group; lone/zero are excluded.
+        Assert.Single(groups);
+        Assert.Equal(shared, groups[0].ContainerId);
+        Assert.Equal(2, groups[0].Members.Count);
+        Assert.Equal("Dock function", groups[0].Name);
     }
 }

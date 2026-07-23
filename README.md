@@ -25,10 +25,16 @@ Built with **C# WinUI 3** on **.NET 9** (unpackaged desktop app).
   SuperSpeedPlus capability, and system charging state / negotiated charge rate (USB‑PD) via the
   WinRT battery aggregate. Fields Windows does not expose to user mode are clearly labelled.
 - **USB4** — discovers **USB4 Host Router** devnodes (shown as a top‑level section in the topology
-  tree) with their PnP/driver properties, labels USB4‑class link speeds (20/40 Gbps) and tunnelled
-  USB 3.2 links on devices. Full USB4 fabric detail (router/adapter topology, PCIe/DisplayPort
-  tunnelling, per‑lane negotiation) is not exposed to user mode by public Windows APIs and is
-  clearly labelled as such.
+  tree) and **enumerates each router's PnP/PCIe devnode subtree** (tunnelled xHCI host controllers,
+  PCIe/DisplayPort tunnels and their descendants) via CfgMgr32, so a router is no longer a flat node.
+  Labels USB4‑class link speeds (20/40 Gbps) and tunnelled USB 3.2 links on devices. Full USB4 fabric
+  detail (router/adapter topology, PCIe/DisplayPort tunnelling, per‑lane negotiation) is not exposed
+  to user mode by public Windows APIs and is clearly labelled as such.
+- **Physical grouping** — logically‑separate USB3/USB4 functions that share one physical
+  device/enclosure are grouped by Windows **`ContainerId`**. The details pane has a **Related** tab
+  listing the other functions of the selected node's physical device, and the topology tree gains a
+  synthetic **"Physical Devices"** section clustering every node by ContainerId. True same‑connector
+  identity (ACPI `_PLD/_UPC`) is not exposed to user mode.
 - **Live events** — real‑time USB arrival/removal log via `CM_Register_Notification`, with a
   debounced auto‑refresh.
 - **Export** — save the full snapshot to **JSON** for diagnostics/sharing.
@@ -42,7 +48,8 @@ Built with **C# WinUI 3** on **.NET 9** (unpackaged desktop app).
 | Hub/port & descriptor queries | **usbioctl / DeviceIoControl** — `IOCTL_USB_GET_ROOT_HUB_NAME`, `..._GET_NODE_INFORMATION`, `..._GET_NODE_CONNECTION_INFORMATION_EX(_V2)`, `..._GET_DESCRIPTOR_FROM_NODE_CONNECTION`, `..._GET_NODE_CONNECTION_NAME`, `..._GET_HUB_INFORMATION_EX` |
 | Supplementary data | **WMI** — `Win32_USBController`, `Win32_USBHub`, `Win32_PnPEntity` |
 | Live events | **CfgMgr32** — `CM_Register_Notification` |
-| USB4 host routers | **SetupAPI / CfgMgr32** — present‑devnode scan (`SetupDiEnumDeviceInfo`) matched by service/class/description; DEVPKEY properties (Windows publishes no device‑interface GUID for USB4 host routers) |
+| USB4 host routers | **SetupAPI / CfgMgr32** — present‑devnode scan (`SetupDiEnumDeviceInfo`) matched by service/class/description, then subtree walk via `CM_Get_Child`/`CM_Get_Sibling`; DEVPKEY properties (Windows publishes no device‑interface GUID for USB4 host routers) |
+| Physical grouping | **CfgMgr32** — `DEVPKEY_Device_ContainerId` groups the logically‑separate USB3/USB4 functions of one physical device/enclosure |
 | Charging / USB‑PD | **WinRT** — `Windows.Devices.Power.Battery` |
 
 Native interop is generated with **CsWin32** (`Microsoft.Windows.CsWin32`) from the Win32
@@ -100,9 +107,14 @@ complete data, run as Administrator.
   connector type (Type‑C vs legacy) are **not** exposed to user mode by public Windows APIs; the
   app surfaces what is available (negotiated speed, alt modes, charge rate) and labels the rest.
 - **USB4** host routers are located by scanning present devnodes (Windows publishes no
-  device‑interface GUID for them). Full USB4 fabric detail — router/adapter topology, PCIe and
-  DisplayPort tunnelling, and per‑lane link negotiation — is **not** exposed to user mode and is
-  labelled accordingly.
+  device‑interface GUID for them); their children are the **PnP/PCIe devnode subtree** (a PnP view,
+  not a USB hub/port tree). The tunnelled USB devices themselves also appear under the tunnelled
+  xHCI host controller in the host‑controller tree (related by ContainerId). Full USB4 fabric detail
+  — router/adapter topology, PCIe and DisplayPort tunnelling, and per‑lane link negotiation — is
+  **not** exposed to user mode and is labelled accordingly.
+- **Physical grouping** relies on Windows **`ContainerId`**, which relates the separate devnodes of
+  one physical device/enclosure. True per‑*connector* identity (ACPI `_PLD/_UPC`) is **not** cleanly
+  exposed to user mode, so grouping is at device/enclosure granularity.
 - On systems with **no USB hardware** (e.g. some cloud VMs) the tree is empty and the status bar
   reports zero controllers — this is expected.
 

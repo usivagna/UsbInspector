@@ -15,6 +15,11 @@ public sealed class Usb4Enumerator
         "Full USB4 fabric detail (router/adapter topology, PCIe/DisplayPort tunnelling, per-lane " +
         "negotiation and native link state) is not exposed to user mode by public Windows APIs.";
 
+    // A USB4 host router is a PCIe/PnP system device (not a USB hub), so its topology can only be
+    // walked via the Configuration Manager devnode tree, not the USB hub/port IOCTLs. Depth-capped
+    // and cycle-guarded so a pathological devnode graph can never hang or overflow.
+    private const int MaxSubtreeDepth = 32;
+
     public IReadOnlyList<UsbNode> Enumerate(List<string> warnings)
     {
         var routers = new List<UsbNode>();
@@ -28,7 +33,9 @@ public sealed class Usb4Enumerator
                     continue;
                 }
 
-                routers.Add(BuildRouter(instance));
+                UsbNode router = BuildRouter(instance);
+                PopulateSubtree(router, instance.DevInst, warnings);
+                routers.Add(router);
             }
         }
         catch (Exception ex)
@@ -89,6 +96,96 @@ public sealed class Usb4Enumerator
             Pnp = pnp,
             Usb4 = usb4,
         };
+    }
+
+    /// <summary>
+    /// Walks the router's PnP/PCIe devnode subtree (tunnelled xHCI host controllers, PCIe/DisplayPort
+    /// tunnels and their descendants) via CfgMgr32, attaching each descendant as a child node. This is
+    /// a PnP view, not a USB hub/port tree; the tunnelled USB devices themselves still appear under the
+    /// tunnelled xHCI host controller in the host-controller tree (cross-linked by ContainerId).
+    /// </summary>
+    private static void PopulateSubtree(UsbNode parent, uint parentDevInst, List<string> warnings)
+    {
+        try
+        {
+            var visited = new HashSet<uint>();
+            AddChildren(parent, parentDevInst, visited, 0);
+        }
+        catch (Exception ex)
+        {
+            parent.Warnings.Add($"Could not enumerate USB4 router subtree: {ex.Message}");
+        }
+    }
+
+    private static void AddChildren(UsbNode parentNode, uint parentDevInst, HashSet<uint> visited, int depth)
+    {
+        if (depth >= MaxSubtreeDepth)
+        {
+            parentNode.Warnings.Add("Maximum devnode nesting depth reached; deeper devices were not enumerated.");
+            return;
+        }
+
+        uint? child = CmDevice.GetChild(parentDevInst);
+        while (child is uint devInst)
+        {
+            if (visited.Add(devInst))
+            {
+                UsbNode childNode = BuildDevnode(devInst);
+                parentNode.Children.Add(childNode);
+                AddChildren(childNode, devInst, visited, depth + 1);
+            }
+
+            child = CmDevice.GetSibling(devInst);
+        }
+    }
+
+    private static UsbNode BuildDevnode(uint devInst)
+    {
+        PnpDeviceProperties pnp;
+        try
+        {
+            pnp = PnpPropertyReader.Read(devInst);
+        }
+        catch
+        {
+            pnp = new PnpDeviceProperties { InstanceId = CmDevice.GetDeviceId(devInst) };
+        }
+
+        bool isTunnelledUsbController = LooksLikeUsbHostController(pnp);
+        string name = isTunnelledUsbController
+            ? $"Tunnelled USB controller: {pnp.BestDisplayName}"
+            : pnp.BestDisplayName;
+
+        var node = new UsbNode
+        {
+            Kind = UsbNodeKind.PnpDevice,
+            Name = name,
+            InstanceId = pnp.InstanceId ?? CmDevice.GetDeviceId(devInst),
+            DevInst = devInst,
+            Pnp = pnp,
+        };
+
+        if (isTunnelledUsbController)
+        {
+            node.Warnings.Add(
+                "This is a tunnelled xHCI USB host controller; the USB devices behind it are also "
+                + "listed under it in the host-controller tree (related by ContainerId).");
+        }
+
+        return node;
+    }
+
+    private static bool LooksLikeUsbHostController(PnpDeviceProperties pnp)
+    {
+        if (Contains(pnp.Service, "xhci") || Contains(pnp.Service, "usbxhci"))
+        {
+            return true;
+        }
+
+        bool usbClass = Contains(pnp.Class, "usb") || Contains(pnp.ClassGuid, "usb");
+        return usbClass
+               && (Contains(pnp.DeviceDescription, "host controller")
+                   || Contains(pnp.BusReportedDeviceDesc, "host controller"));
     }
 
     private static bool Contains(string? value, string token)

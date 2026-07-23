@@ -9,6 +9,16 @@ public enum UsbNodeKind
     Device,
     EmptyPort,
     Usb4HostRouter,
+
+    /// <summary>A generic PnP/PCIe devnode enumerated beneath a USB4 host router.</summary>
+    PnpDevice,
+
+    /// <summary>Synthetic root of the "Physical devices" view (nodes grouped by ContainerId).</summary>
+    PhysicalGroupRoot,
+
+    /// <summary>Synthetic node representing one physical device/enclosure (shared ContainerId).</summary>
+    PhysicalGroup,
+
     Unknown,
 }
 

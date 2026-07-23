@@ -170,6 +170,41 @@ public static class DetailsBuilder
         }
     }
 
+    public static IEnumerable<DetailRow> Related(UsbNode node, UsbSnapshot? snapshot)
+    {
+        string? containerId = node.Pnp?.ContainerId;
+        if (snapshot is null || !UsbSnapshot.IsRealContainerId(containerId))
+        {
+            yield return new DetailRow("Related devices", "No physical-device grouping (ContainerId) reported for this node.");
+            yield break;
+        }
+
+        yield return new DetailRow("Container ID", containerId);
+
+        List<UsbNode> related = snapshot.EnumerateAll()
+            .Where(n => !ReferenceEquals(n, node)
+                        && string.Equals(n.Pnp?.ContainerId, containerId, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (related.Count == 0)
+        {
+            yield return new DetailRow("Related devices", "This is the only function reported for its physical container.");
+        }
+        else
+        {
+            foreach (UsbNode r in related)
+            {
+                string detail = r.Name + (r.InstanceId is not null ? $"  [{r.InstanceId}]" : string.Empty);
+                yield return new DetailRow(r.Kind.ToString(), detail);
+            }
+        }
+
+        yield return new DetailRow(
+            "Note",
+            "Grouped by Windows ContainerId — the logically-separate USB3/USB4 functions of one "
+            + "physical device/enclosure. True same-connector identity (ACPI _PLD/_UPC) is not exposed to user mode.");
+    }
+
     public static string Descriptors(UsbNode node)
     {
         var sb = new StringBuilder();
@@ -290,6 +325,8 @@ public static class DetailsBuilder
         UsbSpeed.Super => "SuperSpeed (5 Gbps)",
         UsbSpeed.SuperPlus => "SuperSpeed+ (10 Gbps)",
         UsbSpeed.SuperPlus20 => "SuperSpeed+ (20 Gbps)",
+        UsbSpeed.Usb4Gen2x2 => "USB4 (20 Gbps)",
+        UsbSpeed.Usb4Gen3x2 => "USB4 (40 Gbps)",
         _ => "Unknown",
     };
 }

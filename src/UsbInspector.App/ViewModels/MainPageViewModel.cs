@@ -34,6 +34,7 @@ public sealed partial class MainPageViewModel : ObservableObject
     public ObservableCollection<DetailRow> PowerRows { get; } = new();
     public ObservableCollection<DetailRow> UsbCRows { get; } = new();
     public ObservableCollection<DetailRow> Usb4Rows { get; } = new();
+    public ObservableCollection<DetailRow> RelatedRows { get; } = new();
     public ObservableCollection<string> EventLog { get; } = new();
 
     [ObservableProperty] private UsbTreeItem? _selectedItem;
@@ -72,11 +73,15 @@ public sealed partial class MainPageViewModel : ObservableObject
             RootItems.Add(new UsbTreeItem(router));
         }
 
+        IReadOnlyList<PhysicalDeviceGroup> groups = snapshot.BuildPhysicalGroups();
+        AddPhysicalDevicesView(snapshot, groups);
+
         HasDevices = RootItems.Count > 0;
 
         IsNotElevated = !snapshot.IsElevated;
         StatusSummary = $"{snapshot.HostControllers.Count} controller(s), {snapshot.HubCount} hub(s), " +
-                        $"{snapshot.DeviceCount} device(s), {snapshot.Usb4RouterCount} USB4 router(s).  " +
+                        $"{snapshot.DeviceCount} device(s), {snapshot.Usb4RouterCount} USB4 router(s), " +
+                        $"{groups.Count} physical group(s).  " +
                         $"Captured {snapshot.CapturedAtUtc.ToLocalTime():HH:mm:ss}";
         PowerDeliverySummary = BuildPowerDeliverySummary(snapshot.PowerDelivery);
 
@@ -144,6 +149,48 @@ public sealed partial class MainPageViewModel : ObservableObject
     [RelayCommand]
     private void ClearLog() => EventLog.Clear();
 
+    private void AddPhysicalDevicesView(UsbSnapshot snapshot, IReadOnlyList<PhysicalDeviceGroup> groups)
+    {
+        if (groups.Count == 0)
+        {
+            return;
+        }
+
+        Dictionary<string, UsbNode> byInstance = snapshot.EnumerateAll()
+            .Where(n => n.InstanceId is not null)
+            .GroupBy(n => n.InstanceId!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        var groupItems = new List<UsbTreeItem>();
+        foreach (PhysicalDeviceGroup group in groups)
+        {
+            var groupNode = new UsbNode
+            {
+                Kind = UsbNodeKind.PhysicalGroup,
+                Name = $"{group.Name} — {group.Members.Count} functions",
+                InstanceId = group.ContainerId,
+            };
+
+            var memberItems = new List<UsbTreeItem>();
+            foreach (PhysicalDeviceMember member in group.Members)
+            {
+                UsbNode real = member.InstanceId is not null && byInstance.TryGetValue(member.InstanceId, out UsbNode? found)
+                    ? found
+                    : new UsbNode { Kind = member.Kind, Name = member.Name, InstanceId = member.InstanceId };
+                memberItems.Add(new UsbTreeItem(real, Array.Empty<UsbTreeItem>()));
+            }
+
+            groupItems.Add(new UsbTreeItem(groupNode, memberItems));
+        }
+
+        var root = new UsbNode
+        {
+            Kind = UsbNodeKind.PhysicalGroupRoot,
+            Name = $"Physical Devices (grouped by ContainerId) — {groups.Count}",
+        };
+        RootItems.Add(new UsbTreeItem(root, groupItems));
+    }
+
     partial void OnSelectedItemChanged(UsbTreeItem? value)
     {
         OverviewRows.Clear();
@@ -151,6 +198,7 @@ public sealed partial class MainPageViewModel : ObservableObject
         PowerRows.Clear();
         UsbCRows.Clear();
         Usb4Rows.Clear();
+        RelatedRows.Clear();
 
         if (value is null)
         {
@@ -170,6 +218,7 @@ public sealed partial class MainPageViewModel : ObservableObject
         foreach (DetailRow row in DetailsBuilder.Power(node)) PowerRows.Add(row);
         foreach (DetailRow row in DetailsBuilder.UsbC(node)) UsbCRows.Add(row);
         foreach (DetailRow row in DetailsBuilder.Usb4(node)) Usb4Rows.Add(row);
+        foreach (DetailRow row in DetailsBuilder.Related(node, _snapshot)) RelatedRows.Add(row);
 
         DescriptorsText = DetailsBuilder.Descriptors(node);
         RawText = DetailsBuilder.Raw(node);
