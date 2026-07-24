@@ -38,17 +38,22 @@ Built with **C# WinUI 3** on **.NET 9** (unpackaged desktop app).
   requires elevation; **without admin rights the app falls back to the PnP devnode subtree** and shows
   a clear note. Labels USB4‑class link speeds (20/40 Gbps) and tunnelled USB 3.2 links on devices.
 - **Physical grouping** — logically‑separate USB3/USB4 functions that share one physical
-  device/enclosure are grouped by Windows **`ContainerId`**. The details pane has a **Related** tab
-  listing the other functions of the selected node's physical device, and the topology tree gains a
-  synthetic **"Physical Devices"** section clustering every node by ContainerId.
-- **By Physical Port** — a second grouping clusters functions that share the same **physical host
-  port / connector** (e.g. the USB 3.x and USB4 functions on one USB‑C receptacle). A synthetic **"By
-  Physical Port"** tree section and a **Port** details tab list the co‑located functions. The port key
-  is derived from the best available signal, in priority order: **USB4 fabric port** (ETW domain +
-  topology) → **ACPI `_PLD` connector token** (from `DEVPKEY_Device_LocationPaths`) → **location‑path
-  prefix** → **`DEVPKEY_Device_LocationInfo`**. Fidelity is firmware‑dependent and each group is
-  **labelled with its source/confidence**. True same‑connector identity via ACPI `_PLD/_UPC` is only
-  partially exposed to user mode, so lower‑confidence groupings are marked "approximate".
+  device/enclosure or connector are grouped for you. The details pane has a single **"Also here"** tab
+  that lists the other functions sharing the selected device's **physical port** first (USB4 fabric
+  port / ACPI `_PLD` connector token, shown **✓ Confirmed**), then the other functions of the same
+  physical enclosure by Windows **`ContainerId`** (shown **~ Likely**). In Simple mode the topology
+  tree adds one synthetic **"Grouped by connection"** section (port groups preferred, else enclosure
+  groups); Advanced mode shows the port and device groupings separately. The port key is derived from
+  the best available signal, in priority order: **USB4 fabric port** (ETW domain + topology) → **ACPI
+  `_PLD` connector token** (from `DEVPKEY_Device_LocationPaths`) → **location‑path prefix** →
+  **`DEVPKEY_Device_LocationInfo`**; fidelity is firmware‑dependent and each group is labelled with a
+  plain‑language confidence badge.
+- **Simple vs Advanced view** — the app opens in a friendly **Simple** mode: device‑type icons and
+  plain‑language labels/tooltips, empty tabs hidden, and only the tabs relevant to the selected device
+  (Overview, Speed & Power, USB‑C, USB4, "Also here"). Toggle **Advanced** in the toolbar to reveal the
+  technical tabs (**Descriptors**, **Driver**, **Raw**) and raw keys — nothing is removed, just
+  progressively disclosed. A **search box** filters the tree, and **Copy summary** puts a readable
+  plain‑text device report on the clipboard (alongside **Export JSON**).
 - **Live events** — real‑time USB arrival/removal log via `CM_Register_Notification`, with a
   debounced auto‑refresh.
 - **Export** — save the full snapshot to **JSON** for diagnostics/sharing.

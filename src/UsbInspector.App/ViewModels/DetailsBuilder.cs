@@ -9,14 +9,15 @@ public static class DetailsBuilder
 {
     public static IEnumerable<DetailRow> Overview(UsbNode node)
     {
-        yield return new DetailRow("Type", node.Kind.ToString());
+        UsbDeviceCategory category = UsbDeviceClassifier.Classify(node);
+        yield return new DetailRow("Device type", UsbDeviceClassifier.FriendlyType(category));
         yield return new DetailRow("Name", node.Name);
         if (node.PortNumber is uint port)
         {
-            yield return new DetailRow("Port", port.ToString());
+            yield return new DetailRow("Port", port.ToString(), "Which numbered port on the parent hub this device is plugged into.");
         }
 
-        yield return new DetailRow("Speed", DescribeSpeed(node.Speed));
+        yield return new DetailRow("Speed", DescribeSpeed(node.Speed), "How fast this device can transfer data.");
         if (node.DeviceAddress is ushort addr)
         {
             yield return new DetailRow("Device address", addr.ToString());
@@ -25,8 +26,8 @@ public static class DetailsBuilder
         UsbDeviceDescriptorInfo? d = node.DeviceDescriptor;
         if (d is not null)
         {
-            yield return new DetailRow("Vendor ID", $"{d.VendorIdHex} ({d.IdVendor})");
-            yield return new DetailRow("Product ID", $"{d.ProductIdHex} ({d.IdProduct})");
+            yield return new DetailRow("Vendor ID", $"{d.VendorIdHex} ({d.IdVendor})", "The maker's USB ID number.");
+            yield return new DetailRow("Product ID", $"{d.ProductIdHex} ({d.IdProduct})", "The product's USB ID number.");
             yield return new DetailRow("USB version", d.UsbVersion);
             yield return new DetailRow("Device release", $"0x{d.BcdDevice:X4}");
             yield return new DetailRow("Class", $"0x{d.DeviceClass:X2}");
@@ -36,7 +37,7 @@ public static class DetailsBuilder
             yield return new DetailRow("Configurations", d.NumConfigurations.ToString());
         }
 
-        yield return new DetailRow("Instance ID", node.InstanceId);
+        yield return new DetailRow("Identifier", node.InstanceId, "Windows' internal name for this device.");
     }
 
     public static IEnumerable<DetailRow> Pnp(UsbNode node)
@@ -90,7 +91,7 @@ public static class DetailsBuilder
         UsbCInfo? c = node.UsbC;
         if (c is null || !c.HasAnyData)
         {
-            yield return new DetailRow("USB-C / Type-C", "No USB-C specific data reported for this device.");
+            yield return new DetailRow("USB-C / Type-C", "No USB-C details reported for this device.");
             if (c is not null)
             {
                 foreach (string note in c.Limitations)
@@ -128,7 +129,7 @@ public static class DetailsBuilder
         Usb4Info? u = node.Usb4;
         if (u is null || !u.HasAnyData)
         {
-            yield return new DetailRow("USB4", "No USB4-specific data reported for this device.");
+            yield return new DetailRow("USB4", "This device doesn't use USB4.");
             if (u is not null)
             {
                 foreach (string note in u.Limitations)
@@ -164,17 +165,17 @@ public static class DetailsBuilder
         {
             if (u.DomainId is uint dom)
             {
-                yield return new DetailRow("Domain ID", $"0x{dom:X}");
+                yield return new DetailRow("Domain ID", $"0x{dom:X}", "Which USB4 bus (host router group) this device belongs to.");
             }
 
             if (u.TopologyId is not null)
             {
-                yield return new DetailRow("Topology ID", u.TopologyId);
+                yield return new DetailRow("Topology ID", u.TopologyId, "The device's position on the USB4 chain (host → hub → device).");
             }
 
             if (u.SiliconVendorId is ushort sv)
             {
-                yield return new DetailRow("Silicon vendor ID", $"0x{sv:X4}");
+                yield return new DetailRow("Silicon vendor ID", $"0x{sv:X4}", "The maker of the USB4 controller chip.");
             }
 
             if (u.SiliconProductId is ushort sp)
@@ -225,17 +226,17 @@ public static class DetailsBuilder
             if (u.CurrentBandwidthDownGbps is double down && u.CurrentBandwidthUpGbps is double up2)
             {
                 string gen = u.LinkGeneration is int g ? $" (Gen {g}, {(u.LanesBonded == true ? "dual" : "single")} lane)" : string.Empty;
-                yield return new DetailRow("Current bandwidth (down/up)", $"{down:0}Gbps/{up2:0}Gbps{gen}");
+                yield return new DetailRow("Current bandwidth (down/up)", $"{down:0}Gbps/{up2:0}Gbps{gen}", "The negotiated USB4 link speed for this connection.");
             }
 
             if (u.DpInAdaptersTotal is int dpt)
             {
-                yield return new DetailRow("Total DP IN adapters", dpt.ToString());
+                yield return new DetailRow("Total DP IN adapters", dpt.ToString(), "How many DisplayPort video inputs this router has.");
             }
 
             if (u.DpInAdaptersTunneled is int dptun)
             {
-                yield return new DetailRow("Tunneled DP IN adapters", dptun.ToString());
+                yield return new DetailRow("Tunneled DP IN adapters", dptun.ToString(), "DisplayPort inputs currently carrying video over USB4.");
             }
 
             if (u.DpInAdaptersUnavailable is int dpun)
@@ -263,88 +264,92 @@ public static class DetailsBuilder
         }
     }
 
-    public static IEnumerable<DetailRow> Related(UsbNode node, UsbSnapshot? snapshot)
-    {
-        string? containerId = node.Pnp?.ContainerId;
-        if (snapshot is null || !UsbSnapshot.IsRealContainerId(containerId))
-        {
-            yield return new DetailRow("Related devices", "No physical-device grouping (ContainerId) reported for this node.");
-            yield break;
-        }
-
-        yield return new DetailRow("Container ID", containerId);
-
-        List<UsbNode> related = snapshot.EnumerateAll()
-            .Where(n => !ReferenceEquals(n, node)
-                        && string.Equals(n.Pnp?.ContainerId, containerId, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        if (related.Count == 0)
-        {
-            yield return new DetailRow("Related devices", "This is the only function reported for its physical container.");
-        }
-        else
-        {
-            foreach (UsbNode r in related)
-            {
-                string detail = r.Name + (r.InstanceId is not null ? $"  [{r.InstanceId}]" : string.Empty);
-                yield return new DetailRow(r.Kind.ToString(), detail);
-            }
-        }
-
-        yield return new DetailRow(
-            "Note",
-            "Grouped by Windows ContainerId — the logically-separate USB3/USB4 functions of one "
-            + "physical device/enclosure. True same-connector identity (ACPI _PLD/_UPC) is not exposed to user mode.");
-    }
-
-    public static IEnumerable<DetailRow> SamePhysicalPort(UsbNode node, UsbSnapshot? snapshot)
+    /// <summary>
+    /// The unified "Also here" view: other functions that live on the same physical port/connector,
+    /// then other functions of the same physical device/enclosure. In Advanced mode the raw keys and
+    /// grouping-confidence notes are appended.
+    /// </summary>
+    public static IEnumerable<DetailRow> AlsoHere(UsbNode node, UsbSnapshot? snapshot, bool advanced)
     {
         if (snapshot is null)
         {
-            yield return new DetailRow("Same physical port", "No snapshot available.");
+            yield return new DetailRow("Also here", "Run a scan to see related functions.");
             yield break;
         }
 
-        (string Key, PortGroupSource Source)? computed = PhysicalPortGrouper.ComputePortKey(node);
-        if (computed is null)
+        bool foundAny = false;
+
+        // 1) Same physical port / connector.
+        (string Key, PortGroupSource Source)? port = PhysicalPortGrouper.ComputePortKey(node);
+        if (port is not null)
         {
-            yield return new DetailRow("Same physical port", "No physical-port location signal reported for this node.");
-            yield break;
-        }
+            List<UsbNode> sharingPort = snapshot.EnumerateAll()
+                .Where(n => !ReferenceEquals(n, node))
+                .Where(n =>
+                {
+                    var c = PhysicalPortGrouper.ComputePortKey(n);
+                    return c is not null && string.Equals(c.Value.Key, port.Value.Key, StringComparison.OrdinalIgnoreCase);
+                })
+                .ToList();
 
-        (string key, PortGroupSource source) = computed.Value;
-
-        List<UsbNode> sharing = snapshot.EnumerateAll()
-            .Where(n => !ReferenceEquals(n, node))
-            .Where(n =>
+            if (sharingPort.Count > 0)
             {
-                var c = PhysicalPortGrouper.ComputePortKey(n);
-                return c is not null && string.Equals(c.Value.Key, key, StringComparison.OrdinalIgnoreCase);
-            })
-            .ToList();
+                foundAny = true;
+                bool confident = port.Value.Source is PortGroupSource.Usb4FabricPort or PortGroupSource.AcpiPld;
+                yield return new DetailRow(
+                    "On the same port",
+                    $"{sharingPort.Count} other function(s)  ({(confident ? "✓ Confirmed" : "~ Likely")})",
+                    "Other USB functions that share this physical connector (e.g. USB3 + USB4 on one USB-C port).");
+                foreach (UsbNode r in sharingPort)
+                {
+                    yield return new DetailRow("• " + UsbDeviceClassifier.FriendlyType(UsbDeviceClassifier.Classify(r)),
+                        DisplayName(r, advanced));
+                }
 
-        yield return new DetailRow("Port key", key);
-
-        if (sharing.Count == 0)
-        {
-            yield return new DetailRow("Same physical port", "This is the only function reported on its physical port.");
-        }
-        else
-        {
-            foreach (UsbNode r in sharing)
-            {
-                string detail = r.Name + (r.InstanceId is not null ? $"  [{r.InstanceId}]" : string.Empty);
-                yield return new DetailRow(r.Kind.ToString(), detail);
+                if (advanced)
+                {
+                    yield return new DetailRow("Port key", port.Value.Key);
+                }
             }
         }
 
-        var portGroup = new PhysicalPortGroup { Source = source };
-        yield return new DetailRow(
-            "Note",
-            $"Physical-port grouping is {portGroup.SourceLabel}. Fidelity is firmware-dependent "
-            + "(ACPI _PLD / location paths); the USB4 fabric port is the most authoritative signal.");
+        // 2) Same physical device / enclosure (ContainerId).
+        string? containerId = node.Pnp?.ContainerId;
+        if (UsbSnapshot.IsRealContainerId(containerId))
+        {
+            List<UsbNode> sameDevice = snapshot.EnumerateAll()
+                .Where(n => !ReferenceEquals(n, node)
+                            && string.Equals(n.Pnp?.ContainerId, containerId, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (sameDevice.Count > 0)
+            {
+                foundAny = true;
+                yield return new DetailRow(
+                    "Part of the same device",
+                    $"{sameDevice.Count} other function(s)",
+                    "Other functions that belong to the same physical gadget/enclosure.");
+                foreach (UsbNode r in sameDevice)
+                {
+                    yield return new DetailRow("• " + UsbDeviceClassifier.FriendlyType(UsbDeviceClassifier.Classify(r)),
+                        DisplayName(r, advanced));
+                }
+
+                if (advanced)
+                {
+                    yield return new DetailRow("Container ID", containerId);
+                }
+            }
+        }
+
+        if (!foundAny)
+        {
+            yield return new DetailRow("Also here", "Nothing else shares this device's port or enclosure.");
+        }
     }
+
+    private static string DisplayName(UsbNode node, bool advanced)
+        => node.Name + (advanced && node.InstanceId is not null ? $"  [{node.InstanceId}]" : string.Empty);
 
     public static string Descriptors(UsbNode node)
     {

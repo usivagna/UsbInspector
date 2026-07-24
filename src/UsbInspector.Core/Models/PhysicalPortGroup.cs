@@ -42,5 +42,11 @@ public sealed class PhysicalPortGroup
         _ => "grouped (approximate)",
     };
 
+    /// <summary>True when the grouping is derived from a high-fidelity signal (fabric port or ACPI _PLD).</summary>
+    public bool IsHighConfidence => Source is PortGroupSource.Usb4FabricPort or PortGroupSource.AcpiPld;
+
+    /// <summary>A short, plain-language confidence badge (e.g. "✓ Confirmed" vs "~ Likely").</summary>
+    public string ConfidenceBadge => IsHighConfidence ? "✓ Confirmed" : "~ Likely";
+
     public List<PhysicalDeviceMember> Members { get; } = new();
 }

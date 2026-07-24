@@ -11,13 +11,18 @@
 
     <Page.Resources>
         <DataTemplate x:Key="DetailRowTemplate" x:DataType="vm:DetailRow">
-            <Grid Margin="0,3,0,3" ColumnSpacing="12">
+            <Grid Margin="0,3,0,3" ColumnSpacing="8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="170" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="{x:Bind Label}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-                <TextBlock Grid.Column="1" Text="{x:Bind Value}" IsTextSelectionEnabled="True" TextWrapping="Wrap" />
+                <FontIcon Grid.Column="1" FontSize="13" Glyph="&#xE946;" VerticalAlignment="Top" Margin="0,2,0,0"
+                          Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                          Visibility="{x:Bind HasHint, Converter={StaticResource BoolToVisibility}}"
+                          ToolTipService.ToolTip="{x:Bind Hint}" />
+                <TextBlock Grid.Column="2" Text="{x:Bind Value}" IsTextSelectionEnabled="True" TextWrapping="Wrap" />
             </Grid>
         </DataTemplate>
     </Page.Resources>
@@ -34,9 +39,13 @@
         <!-- Toolbar -->
         <CommandBar Grid.Row="0" DefaultLabelPosition="Right" HorizontalAlignment="Left" Background="Transparent">
             <AppBarButton Icon="Refresh" Label="Refresh" Command="{x:Bind ViewModel.RefreshCommand}" />
+            <AppBarButton Icon="Copy" Label="Copy summary" Command="{x:Bind ViewModel.CopyReportCommand}" />
             <AppBarButton Icon="Save" Label="Export JSON" Command="{x:Bind ViewModel.ExportCommand}" />
             <AppBarSeparator />
-            <AppBarButton Icon="Admin" Label="Restart as Admin"
+            <AppBarToggleButton Icon="Repair" Label="Advanced"
+                                IsChecked="{x:Bind ViewModel.IsAdvancedMode, Mode=TwoWay}"
+                                ToolTipService.ToolTip="Show technical details (descriptors, drivers, raw data)." />
+            <AppBarButton Icon="Admin" Label="Run as administrator"
                           Command="{x:Bind ViewModel.RelaunchAsAdminCommand}"
                           Visibility="{x:Bind ViewModel.IsNotElevated, Mode=OneWay}" />
         </CommandBar>
@@ -45,8 +54,8 @@
         <InfoBar Grid.Row="1" Margin="0,4,0,8"
                  IsOpen="{x:Bind ViewModel.IsNotElevated, Mode=OneWay}"
                  IsClosable="False" Severity="Informational"
-                 Title="Limited data"
-                 Message="Running without administrator rights. Some descriptors may be unavailable — use 'Restart as Admin' for complete information." />
+                 Title="See full USB4 details"
+                 Message="Run as administrator to show complete USB4 speed &amp; connection details — the same information as the Windows Settings 'USB4 hubs and devices' page." />
 
         <!-- Main content: tree + details -->
         <Grid Grid.Row="2" ColumnSpacing="12">
@@ -56,8 +65,16 @@
             </Grid.ColumnDefinitions>
 
             <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6" Padding="4">
-                <Grid>
-                    <TreeView x:Name="TopologyTree" SelectionMode="Single" ItemInvoked="TopologyTree_ItemInvoked"
+                <Grid RowSpacing="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <AutoSuggestBox Grid.Row="0" QueryIcon="Find" PlaceholderText="Search devices…"
+                                    Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TreeView Grid.Row="1" x:Name="TopologyTree" SelectionMode="Single" ItemInvoked="TopologyTree_ItemInvoked"
                               ItemsSource="{x:Bind ViewModel.RootItems}">
                         <TreeView.ItemTemplate>
                             <DataTemplate x:DataType="vm:UsbTreeItem">
@@ -74,7 +91,7 @@
                         </TreeView.ItemTemplate>
                     </TreeView>
 
-                    <TextBlock Text="No USB devices found. Click Refresh to scan."
+                    <TextBlock Grid.Row="1" Text="No USB devices found. Click Refresh to scan."
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap"
                                Margin="16"
@@ -98,43 +115,44 @@
                             <ItemsControl ItemsSource="{x:Bind ViewModel.OverviewRows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
                         </ScrollViewer>
                     </PivotItem>
-                    <PivotItem Header="Descriptors">
+                    <PivotItem Header="Speed &amp; Power">
+                        <ScrollViewer>
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.PowerRows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
+                        </ScrollViewer>
+                    </PivotItem>
+                    <PivotItem Header="USB-C"
+                               Visibility="{x:Bind ViewModel.HasUsbCData, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <ScrollViewer>
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.UsbCRows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
+                        </ScrollViewer>
+                    </PivotItem>
+                    <PivotItem Header="USB4"
+                               Visibility="{x:Bind ViewModel.HasUsb4Data, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <ScrollViewer>
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.Usb4Rows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
+                        </ScrollViewer>
+                    </PivotItem>
+                    <PivotItem Header="Also here"
+                               Visibility="{x:Bind ViewModel.HasAlsoHereData, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                        <ScrollViewer>
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.AlsoHereRows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
+                        </ScrollViewer>
+                    </PivotItem>
+                    <PivotItem Header="Descriptors"
+                               Visibility="{x:Bind ViewModel.IsAdvancedMode, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                         <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto">
                             <TextBlock Text="{x:Bind ViewModel.DescriptorsText, Mode=OneWay}"
                                        FontFamily="Consolas" IsTextSelectionEnabled="True" TextWrapping="NoWrap" />
                         </ScrollViewer>
                     </PivotItem>
-                    <PivotItem Header="PnP &amp; Driver">
+                    <PivotItem Header="Driver"
+                               Visibility="{x:Bind ViewModel.IsAdvancedMode, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                         <ScrollViewer>
                             <ItemsControl ItemsSource="{x:Bind ViewModel.PnpRows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
                         </ScrollViewer>
                     </PivotItem>
-                    <PivotItem Header="Power &amp; Speed">
-                        <ScrollViewer>
-                            <ItemsControl ItemsSource="{x:Bind ViewModel.PowerRows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
-                        </ScrollViewer>
-                    </PivotItem>
-                    <PivotItem Header="USB-C">
-                        <ScrollViewer>
-                            <ItemsControl ItemsSource="{x:Bind ViewModel.UsbCRows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
-                        </ScrollViewer>
-                    </PivotItem>
-                    <PivotItem Header="USB4">
-                        <ScrollViewer>
-                            <ItemsControl ItemsSource="{x:Bind ViewModel.Usb4Rows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
-                        </ScrollViewer>
-                    </PivotItem>
-                    <PivotItem Header="Related">
-                        <ScrollViewer>
-                            <ItemsControl ItemsSource="{x:Bind ViewModel.RelatedRows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
-                        </ScrollViewer>
-                    </PivotItem>
-                    <PivotItem Header="Port">
-                        <ScrollViewer>
-                            <ItemsControl ItemsSource="{x:Bind ViewModel.PortRows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
-                        </ScrollViewer>
-                    </PivotItem>
-                    <PivotItem Header="Raw">
+                    <PivotItem Header="Raw"
+                               Visibility="{x:Bind ViewModel.IsAdvancedMode, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                         <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Auto">
                             <TextBlock Text="{x:Bind ViewModel.RawText, Mode=OneWay}"
                                        FontFamily="Consolas" IsTextSelectionEnabled="True" TextWrapping="NoWrap" />
