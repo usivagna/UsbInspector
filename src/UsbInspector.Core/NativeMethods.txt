@@ -59,7 +59,6 @@ DEVPKEY_Device_EnumeratorName
 DEVPKEY_Device_Parent
 DEVPKEY_Device_Children
 DEVPKEY_Device_Siblings
-DEVPKEY_Device_Problem
 DEVPKEY_Device_ProblemCode
 DEVPKEY_Device_ProblemStatus
 DEVPKEY_Device_ConfigFlags
