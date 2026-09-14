@@ -44,6 +44,7 @@ public sealed class UsbInspectorService
             snapshot.Warnings.Add($"USB scan failed: {ex.Message}");
         }
 
+        new StorageInfoEnricher().Enrich(snapshot);
         return snapshot;
     }
 }

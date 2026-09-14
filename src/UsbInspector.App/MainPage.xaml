@@ -25,6 +25,27 @@
                 <TextBlock Grid.Column="2" Text="{x:Bind Value}" IsTextSelectionEnabled="True" TextWrapping="Wrap" />
             </Grid>
         </DataTemplate>
+        <DataTemplate x:Key="PortCardTemplate" x:DataType="vm:PortMapItem">
+            <Button Click="PortCard_Click" Tag="{x:Bind}" Margin="0,4" HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch" ToolTipService.ToolTip="{x:Bind Route}">
+                <Grid ColumnSpacing="10" Padding="4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border BorderThickness="2" CornerRadius="3" Padding="8" VerticalAlignment="Top"
+                            BorderBrush="{ThemeResource TextFillColorSecondaryBrush}">
+                        <FontIcon Glyph="{x:Bind Glyph}" FontSize="20" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Spacing="3">
+                        <TextBlock Text="{x:Bind LocationLabel}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{x:Bind Name}" TextWrapping="Wrap" />
+                        <TextBlock Text="{x:Bind Identity}" TextWrapping="Wrap" />
+                        <TextBlock Text="{x:Bind Connection}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </Grid>
+            </Button>
+        </DataTemplate>
     </Page.Resources>
 
     <Grid Margin="12">
@@ -57,8 +78,85 @@
                  Title="See full USB4 details"
                  Message="Run as administrator to show complete USB4 speed &amp; connection details — the same information as the Windows Settings 'USB4 hubs and devices' page." />
 
+        <Pivot Grid.Row="2" IsEnabled="{x:Bind ViewModel.IsNotBusy, Mode=OneWay}">
+            <PivotItem Header="Device management">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="320" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid RowSpacing="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Connected USB devices" Style="{StaticResource SubtitleTextBlockStyle}" />
+                        <TextBlock Grid.Row="1" Text="{x:Bind ViewModel.InventorySummary, Mode=OneWay}" TextWrapping="Wrap" />
+                        <ScrollViewer Grid.Row="2">
+                            <StackPanel>
+                                <TextBlock Text="All devices reported by the USB hub scan, including internal devices. Select one to inspect its port and disks."
+                                           TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" />
+                                <ItemsControl ItemsSource="{x:Bind ViewModel.ConnectedDevices}" ItemTemplate="{StaticResource PortCardTemplate}" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                    <ScrollViewer Grid.Column="1">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="{x:Bind ViewModel.ComputerTitle, Mode=OneWay}" Style="{StaticResource TitleTextBlockStyle}" TextWrapping="Wrap" />
+                            <InfoBar IsOpen="True" IsClosable="False" Severity="Informational"
+                                     Title="Your port map · user-assigned schematic"
+                                     Message="Windows does not provide a model-specific chassis drawing. Identify ports by plugging in a known device, then label the side and socket below. Positions are not to scale. USB 2/3 companion ports may represent one socket; internal and hub ports are also listed." />
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="2" CornerRadius="12" Padding="12">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="FRONT" FontWeight="SemiBold" CharacterSpacing="120" />
+                                        <TextBlock Text="User-labelled sockets" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                        <ItemsControl ItemsSource="{x:Bind ViewModel.FrontPorts}" ItemTemplate="{StaticResource PortCardTemplate}" />
+                                        <TextBlock Text="Assign a port below to place it here." TextWrapping="Wrap" FontSize="12" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="2" CornerRadius="12" Padding="12">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="REAR" FontWeight="SemiBold" CharacterSpacing="120" />
+                                        <TextBlock Text="User-labelled sockets" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                        <ItemsControl ItemsSource="{x:Bind ViewModel.RearPorts}" ItemTemplate="{StaticResource PortCardTemplate}" />
+                                        <TextBlock Text="Assign a port below to place it here." TextWrapping="Wrap" FontSize="12" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                            <Expander Header="Unassigned / other ports (including hubs and internal ports)"
+                                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <ItemsControl ItemsSource="{x:Bind ViewModel.OtherPorts}" ItemTemplate="{StaticResource PortCardTemplate}" />
+                            </Expander>
+                            <TextBlock Text="{x:Bind ViewModel.SelectedTitle, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" />
+                            <TextBlock Text="{x:Bind ViewModel.SelectedPortRoute, Mode=OneWay}" IsTextSelectionEnabled="True" TextWrapping="Wrap" />
+                            <StackPanel Spacing="8" IsEnabled="{x:Bind ViewModel.CanLabelPort, Mode=OneWay}">
+                                <ComboBox Header="Physical side (you identify)" ItemsSource="{x:Bind ViewModel.ChassisSides}"
+                                          SelectedItem="{x:Bind ViewModel.SelectedChassisSide, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                                <TextBox Header="Socket label (for example: upper left, blue socket)"
+                                         Text="{x:Bind ViewModel.PortLabelDraft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MaxLength="80" />
+                                <Button Content="Save port label" Command="{x:Bind ViewModel.SavePortLabelCommand}" />
+                                <TextBlock Text="To clear a saved location, choose Unassigned, erase the label, and save. Labels require an identifiable controller/hub route."
+                                           TextWrapping="Wrap" FontSize="12" />
+                            </StackPanel>
+                            <TextBlock Text="{x:Bind ViewModel.PortLayoutMessage, Mode=OneWay}" TextWrapping="Wrap" />
+                            <InfoBar IsOpen="True" IsClosable="False" Severity="Warning" Title="Check before using a drive"
+                                     Message="Compare the port, serial number, capacity and drive letter. Missing information is unknown, not proof that a disk is writable. This panel never formats or copies data." />
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.ManagementRows}" ItemTemplate="{StaticResource DetailRowTemplate}" />
+                            <TextBlock Text="{x:Bind ViewModel.ScanNotes, Mode=OneWay}" TextWrapping="Wrap"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </PivotItem>
+            <PivotItem Header="Topology &amp; advanced details">
         <!-- Main content: tree + details -->
-        <Grid Grid.Row="2" ColumnSpacing="12">
+        <Grid ColumnSpacing="12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="400" />
                 <ColumnDefinition Width="*" />
@@ -161,6 +259,8 @@
                 </Pivot>
             </Grid>
         </Grid>
+            </PivotItem>
+        </Pivot>
 
         <!-- Live events -->
         <Expander Grid.Row="3" Margin="0,8,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
