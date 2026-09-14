@@ -20,10 +20,12 @@ public sealed partial class MainPageViewModel : ObservableObject
     private readonly DeviceWatcher _watcher = new();
     private UsbSnapshot? _snapshot;
     private CancellationTokenSource? _refreshDebounce;
+    private bool _refreshPending;
 
     public MainPageViewModel()
     {
         _dispatcher = DispatcherQueue.GetForCurrentThread();
+        InitializeDeviceManagement();
         _watcher.DeviceChanged += OnDeviceChanged;
         _watcher.Start();
     }
@@ -43,7 +45,10 @@ public sealed partial class MainPageViewModel : ObservableObject
     [ObservableProperty] private string _selectedTitle = "Select a device";
     [ObservableProperty] private string _statusSummary = "Scanning…";
     [ObservableProperty] private string _powerDeliverySummary = string.Empty;
-    [ObservableProperty] private bool _isBusy;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNotBusy))]
+    private bool _isBusy;
+    public bool IsNotBusy => !IsBusy;
     [ObservableProperty] private bool _isNotElevated = !Elevation.IsProcessElevated();
     [ObservableProperty] private bool _hasSelection;
     [ObservableProperty] private bool _hasDevices;
@@ -72,24 +77,35 @@ public sealed partial class MainPageViewModel : ObservableObject
         }
 
         IsBusy = true;
+        SelectedItem = null;
         StatusSummary = "Scanning USB devices…";
 
-        UsbSnapshot snapshot = await Task.Run(() => new UsbInspectorService().Capture());
-        _snapshot = snapshot;
-
-        RebuildTree();
-
-        IsNotElevated = !snapshot.IsElevated;
-        StatusSummary = BuildStatusSummary(snapshot);
-        PowerDeliverySummary = BuildPowerDeliverySummary(snapshot.PowerDelivery);
-
-        if (RootItems.Count == 0)
+        try
         {
-            SelectedTitle = "No USB devices found";
-            HasSelection = false;
-        }
+            do
+            {
+                _refreshPending = false;
+                UsbSnapshot snapshot = await Task.Run(() => new UsbInspectorService().Capture());
+                _snapshot = snapshot;
 
-        IsBusy = false;
+                RebuildDeviceManagement();
+                RebuildTree();
+
+                IsNotElevated = !snapshot.IsElevated;
+                StatusSummary = BuildStatusSummary(snapshot);
+                PowerDeliverySummary = BuildPowerDeliverySummary(snapshot.PowerDelivery);
+
+                if (RootItems.Count == 0)
+                {
+                    SelectedTitle = "No USB devices found";
+                    HasSelection = false;
+                }
+            } while (_refreshPending);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     [RelayCommand]
@@ -386,7 +402,11 @@ public sealed partial class MainPageViewModel : ObservableObject
         return $"{snapshot.DeviceCount} device(s) connected{portText}.  {captured}";
     }
 
-    partial void OnSelectedItemChanged(UsbTreeItem? value) => RefreshDetails();
+    partial void OnSelectedItemChanged(UsbTreeItem? value)
+    {
+        RefreshDetails();
+        RefreshManagementSelection();
+    }
 
     /// <summary>Rebuilds the detail panes for the current selection (also re-run when Advanced toggles).</summary>
     private void RefreshDetails()
@@ -414,6 +434,7 @@ public sealed partial class MainPageViewModel : ObservableObject
         HasSelection = true;
 
         foreach (DetailRow row in DetailsBuilder.Overview(node)) OverviewRows.Add(row);
+        foreach (DetailRow row in DetailsBuilder.Storage(node)) OverviewRows.Add(row);
         foreach (DetailRow row in DetailsBuilder.Pnp(node)) PnpRows.Add(row);
         foreach (DetailRow row in DetailsBuilder.Power(node)) PowerRows.Add(row);
         foreach (DetailRow row in DetailsBuilder.UsbC(node)) UsbCRows.Add(row);
@@ -459,7 +480,8 @@ public sealed partial class MainPageViewModel : ObservableObject
                 EventLog.RemoveAt(EventLog.Count - 1);
             }
 
-            DebounceRefresh();
+            if (IsBusy) _refreshPending = true;
+            else DebounceRefresh();
         });
     }
 
@@ -478,6 +500,10 @@ public sealed partial class MainPageViewModel : ObservableObject
                     if (RefreshCommand.CanExecute(null))
                     {
                         RefreshCommand.Execute(null);
+                    }
+                    else if (IsBusy)
+                    {
+                        _refreshPending = true;
                     }
                 });
             }

@@ -11,6 +11,11 @@ Built with **C# WinUI 3** on **.NET 9** (unpackaged desktop app).
 
 ## Features
 
+- **Device management** — a connected USB device/hub inventory with device-type icons and a
+  selectable front/rear port schematic labelled with the PC manufacturer/model reported by Windows.
+  Each selection shows its full controller/hub/port route, manufacturer, model and USB serial,
+  plus each associated storage disk's serial, capacity, read-only status and mounted volumes'
+  drive letters, labels, file systems and capacities. Unavailable data is explicitly unknown.
 - **Topology tree** — USB host controllers → root hubs → hubs/ports → devices, with empty‑port
   visibility and a warning badge on nodes with issues.
 - **Descriptors** — Device, Configuration, Interface, Endpoint, String (localized), and
@@ -66,6 +71,7 @@ Built with **C# WinUI 3** on **.NET 9** (unpackaged desktop app).
 | Device tree & properties | **CfgMgr32** — `CM_Get_Parent/Child/Sibling`, `CM_Get_Device_ID`, `CM_Get_DevNode_Property`, `CM_Get_DevNode_Status` |
 | Hub/port & descriptor queries | **usbioctl / DeviceIoControl** — `IOCTL_USB_GET_ROOT_HUB_NAME`, `..._GET_NODE_INFORMATION`, `..._GET_NODE_CONNECTION_INFORMATION_EX(_V2)`, `..._GET_DESCRIPTOR_FROM_NODE_CONNECTION`, `..._GET_NODE_CONNECTION_NAME`, `..._GET_HUB_INFORMATION_EX` |
 | Supplementary data | **WMI** — `Win32_USBController`, `Win32_USBHub`, `Win32_PnPEntity` |
+| PC model and USB storage | **WMI** — `Win32_ComputerSystem`, `Win32_DiskDrive` → `Win32_DiskPartition` → `Win32_LogicalDisk` associations; **CfgMgr32** ancestry correlates disks to USB nodes; query-only `IOCTL_DISK_IS_WRITABLE` reports write protection |
 | Live events | **CfgMgr32** — `CM_Register_Notification` |
 | USB4 host routers | **SetupAPI / CfgMgr32** — present‑devnode scan (`SetupDiEnumDeviceInfo`) matched by service/class/description, then subtree walk via `CM_Get_Child`/`CM_Get_Sibling`; DEVPKEY properties (Windows publishes no device‑interface GUID for USB4 host routers) |
 | USB4 fabric detail | **ETW TraceLogging rundown** (`Microsoft.Diagnostics.Tracing.TraceEvent`) — real‑time session on the USB4 HostRouter/DeviceRouter providers; same source as Settings "USB4 hubs and devices". **Requires administrator rights.** |
@@ -121,6 +127,40 @@ require the hub to be opened with write access, which may need elevation. When n
 app shows an info banner and a **“Restart as Admin”** button; enumeration, topology, PnP
 properties and WMI data still work, but a few descriptors may be unavailable. For the most
 complete data, run as Administrator.
+
+## Set up your USB port map
+
+1. Open **Device management**. Plug a known device into a socket and select it in the connected
+   device list. Compare its serial number and drive letter with the device you intended to use.
+2. Choose **Front**, **Rear**, or **Other**, give the socket a label such as “upper left”, and
+   select **Save port label**. Repeat for the sockets you use. Unlabelled ports remain under
+   **Unassigned / other ports**; the app never guesses physical location from a USB port number.
+3. Select any port card (including empty/error ports) to inspect its full route and details.
+   Refresh and hot-plug scans update the inventory and clear the previous selection to avoid
+   showing a removed drive's details. **Topology & advanced details** retains the original views.
+4. To remove a location, choose **Unassigned**, clear the label and save.
+
+Labels are saved per Windows user in `%LOCALAPPDATA%\UsbInspector\port-layout.json`, keyed by
+machine, controller and hub route rather than by the attached drive. Changing drives does not
+move labels; replacing an identifiable downstream hub does not inherit the old hub's labels.
+If controller/hub identity is unavailable, saving labels is disabled. Recheck labels after
+hardware or firmware changes. USB 2/3 companion logical ports can represent the same physical
+socket; identify and label each observed route yourself.
+
+**This is a user-configured schematic, not an automatically discovered drawing of your PC.**
+Windows model information does not include chassis artwork, socket positions, or a reliable
+front/rear mapping. Internal devices, internal hubs and external hub ports may all appear.
+The front/rear panels show only your assignments, in enumeration order, not a to-scale layout.
+Model-specific chassis artwork and automatic physical socket placement are not provided.
+
+Disk matching uses exact PnP ancestry, including UASP/SCSI devices, rather than similar names
+or serial numbers. Multi-card readers can expose multiple disks and volumes; each is listed
+separately. No media, unformatted disks, volumes without drive letters, unavailable providers,
+and access restrictions can leave details unavailable. Read-only status is a query result,
+not a write test or a guarantee of file permissions. This panel never formats or copies data.
+The view is a snapshot: refresh and recheck identifiers immediately before acting in another app.
+JSON exports now include the reported PC model and storage details (including serial numbers);
+review them before sharing. User-assigned port labels remain local and are not exported.
 
 ## Notes & limitations
 
