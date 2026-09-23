@@ -7,6 +7,8 @@ public sealed class UsbSnapshot
     public string MachineName { get; init; } = Environment.MachineName;
     public string OsVersion { get; init; } = Environment.OSVersion.VersionString;
     public bool IsElevated { get; init; }
+    public string? ComputerManufacturer { get; set; }
+    public string? ComputerModel { get; set; }
 
     /// <summary>System-wide charging / USB-C Power Delivery state, where the OS exposes it.</summary>
     public Services.PowerDeliveryInfo? PowerDelivery { get; set; }

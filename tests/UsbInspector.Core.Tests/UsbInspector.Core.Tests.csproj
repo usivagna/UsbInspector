@@ -10,6 +10,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\UsbInspector.Core\UsbInspector.Core.csproj" />
+    <Compile Include="..\..\src\UsbInspector.App\ViewModels\DetailsBuilder.cs" Link="ViewModels\DetailsBuilder.cs" />
+    <Compile Include="..\..\src\UsbInspector.App\ViewModels\DetailRow.cs" Link="ViewModels\DetailRow.cs" />
+    <Compile Include="..\..\src\UsbInspector.App\ViewModels\UsbTreeItem.cs" Link="ViewModels\UsbTreeItem.cs" />
+    <Compile Include="..\..\src\UsbInspector.App\ViewModels\PortMapItem.cs" Link="ViewModels\PortMapItem.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -21,6 +25,10 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\src\UsbInspector.App\MainPage.xaml" Link="MainPage.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -40,6 +40,7 @@ public sealed class UsbNode
     public PortPowerInfo? Power { get; set; }
     public UsbCInfo? UsbC { get; set; }
     public Usb4Info? Usb4 { get; set; }
+    public List<UsbStorageInfo> StorageDevices { get; } = new();
 
     /// <summary>Non-fatal issues encountered while inspecting this node (e.g. access denied).</summary>
     public List<string> Warnings { get; } = new();

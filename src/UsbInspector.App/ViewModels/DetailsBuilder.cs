@@ -7,6 +7,59 @@ namespace UsbInspector_App.ViewModels;
 /// <summary>Builds the detail-pane sections (rows and text) for a selected USB node.</summary>
 public static class DetailsBuilder
 {
+    public static IEnumerable<DetailRow> Management(UsbNode node)
+    {
+        yield return new DetailRow("Device", node.Name);
+        yield return new DetailRow("Device type", UsbDeviceClassifier.FriendlyType(UsbDeviceClassifier.Classify(node)));
+        yield return new DetailRow("Manufacturer", Known(node.DeviceDescriptor?.Manufacturer ?? node.Pnp?.Manufacturer));
+        yield return new DetailRow("Model", Known(node.DeviceDescriptor?.Product ?? node.Pnp?.BusReportedDeviceDesc));
+        yield return new DetailRow("USB serial number", Known(node.DeviceDescriptor?.SerialNumber));
+        yield return new DetailRow("Windows identifier", Known(node.InstanceId));
+        yield return new DetailRow("Connection", node.Power?.ConnectionStatus?.ToString() ?? "Unknown");
+        foreach (DetailRow row in Storage(node)) yield return row;
+        foreach (string warning in node.Warnings) yield return new DetailRow("Warning", warning);
+    }
+
+    public static IEnumerable<DetailRow> Storage(UsbNode node)
+    {
+        if (node.StorageDevices.Count == 0)
+        {
+            yield return new DetailRow("Storage", "No disk reported (not storage, no media, or details unavailable).");
+            yield break;
+        }
+
+        foreach (UsbStorageInfo disk in node.StorageDevices)
+        {
+            yield return new DetailRow("Disk", Known(disk.DeviceId));
+            yield return new DetailRow("Disk manufacturer", Known(disk.Manufacturer));
+            yield return new DetailRow("Disk model", Known(disk.Model));
+            yield return new DetailRow("Disk serial number", Known(disk.SerialNumber));
+            yield return new DetailRow("Disk capacity", Capacity(disk.CapacityBytes));
+            yield return new DetailRow("Read-only status", disk.IsReadOnly switch
+            {
+                true => "Read-only",
+                false => "Not read-only",
+                null => "Unknown",
+            }, "Disk write protection reported by Windows, not file permissions or a guarantee that writes will succeed.");
+            if (disk.Volumes.Count == 0)
+            {
+                yield return new DetailRow("Volumes", "No mounted logical volumes reported (no media, unformatted, or unavailable).");
+            }
+            foreach (UsbVolumeInfo volume in disk.Volumes)
+            {
+                yield return new DetailRow("Drive letter", volume.DriveLetter ?? "Not assigned");
+                yield return new DetailRow("Volume label", Known(volume.Label));
+                yield return new DetailRow("File system", Known(volume.FileSystem));
+                yield return new DetailRow("Volume capacity", Capacity(volume.CapacityBytes));
+            }
+        }
+    }
+
+    private static string Known(string? value) => string.IsNullOrWhiteSpace(value) ? "Unknown" : value;
+    private static string Capacity(ulong? bytes) => bytes is ulong size
+        ? $"{size / 1_073_741_824d:0.##} GiB ({size:N0} bytes)"
+        : "Unknown";
+
     public static IEnumerable<DetailRow> Overview(UsbNode node)
     {
         UsbDeviceCategory category = UsbDeviceClassifier.Classify(node);

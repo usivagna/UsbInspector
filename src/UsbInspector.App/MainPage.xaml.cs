@@ -32,4 +32,12 @@ public sealed partial class MainPage : Page
             ViewModel.SelectedItem = item;
         }
     }
+
+    private void PortCard_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: PortMapItem item })
+        {
+            ViewModel.SelectManagementPort(item);
+        }
+    }
 }
